@@ -11,6 +11,7 @@ struct Color {
     u8 g;
     u8 b;
 };
+static_assert(sizeof(Color) == 3);
 
 struct Point {
     int x;
@@ -54,6 +55,7 @@ constexpr int renderWidth = 60, renderHeight = 60;
 constexpr int renderScale = 10;
 constexpr int windowWidth = renderWidth * renderScale, windowHeight = renderHeight * renderScale;
 Frame renderFrame{std::vector<Color>(renderWidth * renderHeight), renderWidth, renderHeight};
+
 Frame windowFrame{std::vector<Color>(windowWidth * windowHeight), windowWidth, windowHeight};
 RGFW_window* win = nullptr;
 RGFW_surface* surface = nullptr;
@@ -143,7 +145,11 @@ inline int signedArea2(const Triangle& t) {
 inline bool isTopLeftEdge(const Point& a, const Point& b) {
     const int dx = b.x - a.x;
     const int dy = b.y - a.y;
+#ifdef BOTTOM_LEFT_ORIGIN
     return dy < 0 || (dy == 0 && dx < 0);
+#else
+    return dy < 0 || (dy == 0 && dx > 0);
+#endif
 }
 void drawTriangle(Frame& frame, const Triangle& t, const Color& color) {
     // bounding box of the triangle, clamped to the frame boundaries
@@ -157,21 +163,36 @@ void drawTriangle(Frame& frame, const Triangle& t, const Color& color) {
     int totalArea2 = signedArea2(t);
     if (totalArea2 < 2) return;
 
-    for (int y = minY; y <= maxY; y++) {
-        for (int x = minX; x <= maxX; x++) {
-            Point p = {x, y};
-            int w1 = signedArea2({p, t.p1, t.p2});
-            int w2 = signedArea2({p, t.p2, t.p3});
-            int w3 = signedArea2({p, t.p3, t.p1});
-            // check if the point is inside the triangle using barycentric coordinates
-            if (w1 < 0 || w2 < 0 || w3 < 0) continue;
-            // top-left rule to avoid double drawing of shared edges
-            if ((w1 == 0 && !isTopLeftEdge(t.p1, t.p2)) || (w2 == 0 && !isTopLeftEdge(t.p2, t.p3)) ||
-                (w3 == 0 && !isTopLeftEdge(t.p3, t.p1)))
-                continue;
+    // precompute deltas for efficient barycentric coordinate updates
+    int deltaW1Col = (t.p1.y - t.p2.y);
+    int deltaW2Col = (t.p2.y - t.p3.y);
+    int deltaW3Col = (t.p3.y - t.p1.y);
+    int deltaW1Row = (t.p2.x - t.p1.x);
+    int deltaW2Row = (t.p3.x - t.p2.x);
+    int deltaW3Row = (t.p1.x - t.p3.x);
 
-            drawPixel(frame, p, color);
+    Point p0 = {minX, minY};
+    int w1_row = signedArea2({p0, t.p1, t.p2});
+    int w2_row = signedArea2({p0, t.p2, t.p3});
+    int w3_row = signedArea2({p0, t.p3, t.p1});
+
+    for (int y = minY; y <= maxY; y++) {
+        int w1 = w1_row, w2 = w2_row, w3 = w3_row;
+        for (int x = minX; x <= maxX; x++) {
+            // check if the point is inside the triangle using barycentric coordinates
+            if ((w1 >= 0 && w2 >= 0 && w3 >= 0) &&
+                // top-left rule to avoid double drawing of shared edges
+                ((w1 != 0 || isTopLeftEdge(t.p1, t.p2)) && (w2 != 0 || isTopLeftEdge(t.p2, t.p3)) &&
+                 (w3 != 0 || isTopLeftEdge(t.p3, t.p1))))
+                drawPixel(frame, {x, y}, color);
+
+            w1 += deltaW1Col;
+            w2 += deltaW2Col;
+            w3 += deltaW3Col;
         }
+        w1_row += deltaW1Row;
+        w2_row += deltaW2Row;
+        w3_row += deltaW3Row;
     }
 }
 void drawRGBInterpolatedTriangle(Frame& frame, const Triangle& t, float wireframeThreshold = 1.0f) {
@@ -226,13 +247,25 @@ int main() {
         RGFW_pollEvents();
         clearFrame(renderFrame);
         clearFrame(windowFrame);
+        // ====================================
 
-        // Triangle t1 = {170, 40, 550, 390, 230, 590};
-        // drawRGBInterpolatedTriangle(renderFrame, t1);
+        // test top-left rule for shared edges
+        Point p1 = {10, 15}, p2 = {15, 45}, p3 = {55, 40}, p4 = {40, 5};
+        Triangle t1 = {p1, p3, p2};
+        Triangle t2 = {p1, p4, p3};
+        if (frameNumber % 2 == 0) {
+            drawTriangle(renderFrame, t1, GREEN_COLOR);
+            drawTriangle(renderFrame, t2, BLUE_COLOR);
+        } else {
+            drawTriangle(renderFrame, t2, BLUE_COLOR);
+            drawTriangle(renderFrame, t1, GREEN_COLOR);
+        }
+        frameNumber++;
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
+        // ====================================
         renderToWindow(renderFrame, windowFrame);
         RGFW_window_blitSurface(win, surface);
-        frameNumber++;
     }
 
     RGFW_surface_free(surface);
