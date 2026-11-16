@@ -1,5 +1,5 @@
 #pragma once
-#include "math.h"
+#include "math_utils.h"
 #include <cstdint>
 #include <filesystem>
 #include <vector>
@@ -70,7 +70,7 @@ struct Model { // one .obj file corresponds to one Model
     // one .obj file can have multiple shapes, each shape corresponds to one Mesh
     std::vector<Mesh> meshes;
 
-    mat<4, 4> transform = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1}; // Identity matrix
+    mat<4, 4> transform = {vec4{1, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 1, 0}, {0, 0, 0, 1}}; // Identity matrix
 };
 
 Model loadModelFromObj(const std::filesystem::path& objPath);
@@ -110,6 +110,6 @@ const Model CUBE_MODEL = {
           {1, 5, 0}, {5, 5, 0}, {6, 5, 0}, {6, 5, 0}, {2, 5, 0}, {1, 5, 0}  // right face
       },
       // subMeshes
-      {{.materialIndex = 0, .indexOffset = 0, .indexCount = 36}}}}
+      {{0, 0, 36}}}}
     // default transform
 };

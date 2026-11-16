@@ -116,7 +116,7 @@ Model loadModelFromObj(const std::filesystem::path& path) {
             int mat = matIds[f];
             if (mat != currentMat) {
                 SubMesh sm;
-                sm.materialIndex = currentMat < 0 ? model.materials.size() : currentMat;
+                sm.materialIndex = currentMat < 0 ? static_cast<int>(model.materials.size()) : currentMat;
                 sm.indexOffset = triStart * 3;
                 sm.indexCount = (f - triStart) * 3;
                 mesh.subMeshes.push_back(sm);
@@ -126,7 +126,7 @@ Model loadModelFromObj(const std::filesystem::path& path) {
         }
         // 最后一个
         SubMesh sm;
-        sm.materialIndex = currentMat < 0 ? model.materials.size() : currentMat;
+        sm.materialIndex = currentMat < 0 ? static_cast<int>(model.materials.size()) : currentMat;
         sm.indexOffset = triStart * 3;
         sm.indexCount = (triCount - triStart) * 3;
         mesh.subMeshes.push_back(sm);

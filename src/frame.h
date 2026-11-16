@@ -1,5 +1,5 @@
 #pragma once
-#include "math.h"
+#include "math_utils.h"
 #include <vector>
 
 using Color = RGB;

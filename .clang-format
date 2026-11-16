@@ -23,6 +23,11 @@ BinPackArguments: false
 BinPackParameters: false
 BreakBeforeBinaryOperators: None
 
+# 预处理指令
+IndentPPDirectives: BeforeHash
+PPIndentWidth: 4
+AlignEscapedNewlines: Left
+
 # 其它
 ColumnLimit: 130
 SpaceBeforeParens: ControlStatements
