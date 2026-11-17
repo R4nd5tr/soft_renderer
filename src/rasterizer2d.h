@@ -40,7 +40,7 @@ void drawLine(Frame& frame, const Point& p1, const Point& p2, const Color& color
     int err = dx - dy;
 
     while (true) {
-        drawPixel(frame, {x, y}, color);
+        drawPixel(frame, Point{x, y}, color);
         if ((x == p2.x && y == p2.y) || x < 0 || y < 0 || x >= frame.width || y >= frame.height) break;
         int e2 = 2 * err;
         if (e2 > -dy) {
@@ -68,14 +68,14 @@ void drawCircle(Frame& frame, const Point& center, int radius, const Color& colo
         } else {
             e += 2 * x + 1;
         }
-        drawPixel(frame, {center.x - x, center.y - y}, color);
-        drawPixel(frame, {center.x + x, center.y - y}, color);
-        drawPixel(frame, {center.x - x, center.y + y}, color);
-        drawPixel(frame, {center.x + x, center.y + y}, color);
-        drawPixel(frame, {center.x - y, center.y - x}, color);
-        drawPixel(frame, {center.x + y, center.y - x}, color);
-        drawPixel(frame, {center.x - y, center.y + x}, color);
-        drawPixel(frame, {center.x + y, center.y + x}, color);
+        drawPixel(frame, Point{center.x - x, center.y - y}, color);
+        drawPixel(frame, Point{center.x + x, center.y - y}, color);
+        drawPixel(frame, Point{center.x - x, center.y + y}, color);
+        drawPixel(frame, Point{center.x + x, center.y + y}, color);
+        drawPixel(frame, Point{center.x - y, center.y - x}, color);
+        drawPixel(frame, Point{center.x + y, center.y - x}, color);
+        drawPixel(frame, Point{center.x - y, center.y + x}, color);
+        drawPixel(frame, Point{center.x + y, center.y + x}, color);
         x++;
     }
 }
@@ -124,7 +124,7 @@ void drawTriangle(Frame& frame, const Triangle& t, const Color& color) {
                 // top-left rule to avoid double drawing of shared edges
                 ((w1 != 0 || isTopLeftEdge(t.p1, t.p2)) && (w2 != 0 || isTopLeftEdge(t.p2, t.p3)) &&
                  (w3 != 0 || isTopLeftEdge(t.p3, t.p1))))
-                drawPixel(frame, {x, y}, color);
+                drawPixel(frame, Point{x, y}, color);
 
             w1 += deltaW1Col;
             w2 += deltaW2Col;

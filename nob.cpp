@@ -38,7 +38,8 @@ namespace fs = std::filesystem;
     #define FLAGS "/std:c++17", "/W4", "/EHsc", "/Zi", "/DEBUG", "/Od", "/DNOMINMAX"
     #define HEADER "/Isrc", "/external:Iexternal", "/external:W0"
 #else
-    #define FLAGS "-std=c++17", "-Wall", "-Wextra", "-Wno-unused-function", "-g", "-O0", "-DNOMINMAX"
+    #define FLAGS \
+        "-std=c++17", "-Wall", "-Wextra", "-Wno-unused-function", "-Wno-missing-field-initializers", "-g", "-O0", "-DNOMINMAX"
     #define HEADER "-Isrc", "-Iexternal"
 #endif
 
@@ -64,6 +65,7 @@ namespace fs = std::filesystem;
     #error "Unsupported platform"
 #endif
 
+// 工具函数
 bool is_source_file(const fs::path& path) {
     const auto extension = path.extension();
     return extension == ".cpp" || extension == ".cc" || extension == ".c";
@@ -84,7 +86,7 @@ std::vector<std::string> collect_source_files(const fs::path& directory) {
 // 用法：使用 C++20 编译器编译此文件以引导生成构建系统，windows下注意输出文件名要改为 nob.exe
 // 例如：
 //      g++ -std=c++20 -o nob nob.cpp
-//      clang++ -std=c++20 -o nob nob.cpp
+//      clang++ -std=c++20 -D_CRT_SECURE_NO_WARNINGS -o nob nob.cpp
 //      cl /EHsc /std:c++20 /Fe: nob.exe nob.cpp
 // 然后 ./nob 或 ./nob.exe 来构建项目，项目使用 C++17
 // 构建系统会使用引导的编译器来编译项目
@@ -106,10 +108,6 @@ int main(int argc, char** argv) {
     Nob_Cmd cmd = {0};
     // 构建命令
     nob_cmd_append(&cmd, CC, FLAGS, HEADER);
-#if defined(_MSC_VER) && !defined(__clang__)
-    std::filesystem::create_directories("build");
-    nob_cmd_append(&cmd, "/Fo:build/");
-#endif
     // 源文件
     for (const auto& source : sources) {
         nob_cmd_append(&cmd, source.c_str());

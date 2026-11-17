@@ -2,6 +2,7 @@
 #include "math_utils.h"
 #include <cstdint>
 #include <filesystem>
+#include <string>
 #include <vector>
 
 enum class TextureFormat { NONE, GRAY, GRAY_ALPHA, RGB, RGBA };
@@ -75,12 +76,13 @@ struct Model { // one .obj file corresponds to one Model
 
 Model loadModelFromObj(const std::filesystem::path& objPath);
 
-const Material DEFAULT_MATERIAL = [] {
+inline const Material DEFAULT_MATERIAL = [] {
     Material material{};
     material.name = "DefaultMaterial";
     return material;
 }();
 const Model CUBE_MODEL = {
+
     {},                 // default path
     {DEFAULT_MATERIAL}, // default material
     {
@@ -88,28 +90,108 @@ const Model CUBE_MODEL = {
         {-1, -1, -1, 1},
         {1, -1, -1, 1},
         {1, 1, -1, 1},
-        {-1, 1, -1, 1}, // back face
+        {-1, 1, -1, 1}, // back face z = -1
         {-1, -1, 1, 1},
         {1, -1, 1, 1},
         {1, 1, 1, 1},
-        {-1, 1, 1, 1} // front face
+        {-1, 1, 1, 1} // front face z = +1
     },
     // normals
     {{0, 0, -1, 0}, {0, 0, 1, 0}, {0, -1, 0, 0}, {0, 1, 0, 0}, {-1, 0, 0, 0}, {1, 0, 0, 0}},
-    // uvs
-    {{0.0f, 0.0f}},
+    // uvs：每个面 4 个，按该面逆时针顺序 (0,0)->(1,0)->(1,1)->(0,1)
+    {
+        // back face  z = -1, normalIndex = 0
+        {0.0f, 0.0f},
+        {1.0f, 0.0f},
+        {1.0f, 1.0f},
+        {0.0f, 1.0f}, // uv 0..3
+                      // front face z = +1, normalIndex = 1
+        {0.0f, 0.0f},
+        {1.0f, 0.0f},
+        {1.0f, 1.0f},
+        {0.0f, 1.0f}, // uv 4..7
+                      // bottom face y = -1, normalIndex = 2
+        {0.0f, 0.0f},
+        {1.0f, 0.0f},
+        {1.0f, 1.0f},
+        {0.0f, 1.0f}, // uv 8..11
+                      // top face y = +1, normalIndex = 3
+        {0.0f, 0.0f},
+        {1.0f, 0.0f},
+        {1.0f, 1.0f},
+        {0.0f, 1.0f}, // uv 12..15
+                      // left face x = -1, normalIndex = 4
+        {0.0f, 0.0f},
+        {1.0f, 0.0f},
+        {1.0f, 1.0f},
+        {0.0f, 1.0f}, // uv 16..19
+                      // right face x = +1, normalIndex = 5
+        {0.0f, 0.0f},
+        {1.0f, 0.0f},
+        {1.0f, 1.0f},
+        {0.0f, 1.0f} // uv 20..23
+    },
     // meshes
-    {{"Cube", // name
-      {
-          // indices
-          {0, 0, 0}, {1, 0, 0}, {2, 0, 0}, {2, 0, 0}, {3, 0, 0}, {0, 0, 0}, // back face
-          {4, 1, 0}, {5, 1, 0}, {6, 1, 0}, {6, 1, 0}, {7, 1, 0}, {4, 1, 0}, // front face
-          {0, 2, 0}, {4, 2, 0}, {5, 2, 0}, {5, 2, 0}, {1, 2, 0}, {0, 2, 0}, // bottom face
-          {3, 3, 0}, {2, 3, 0}, {6, 3, 0}, {6, 3, 0}, {7, 3, 0}, {3, 3, 0}, // top face
-          {0, 4, 0}, {3, 4, 0}, {7, 4, 0}, {7, 4, 0}, {4, 4, 0}, {0, 4, 0}, // left face
-          {1, 5, 0}, {5, 5, 0}, {6, 5, 0}, {6, 5, 0}, {2, 5, 0}, {1, 5, 0}  // right face
-      },
-      // subMeshes
-      {{0, 0, 36}}}}
-    // default transform
+    {
+        {"Cube", // name
+         {       // VertexIndices: {vertexIndex, normalIndex, uvIndex}
+
+          // back face z = -1, normal (0,0,-1)
+          // quad 顺序: 0 -> 3 -> 2 -> 1
+          {0, 0, 0},
+          {3, 0, 1},
+          {2, 0, 2},
+          {0, 0, 0},
+          {2, 0, 2},
+          {1, 0, 3},
+
+          // front face z = +1, normal (0,0,1)
+          // quad 顺序: 4 -> 5 -> 6 -> 7
+          {4, 1, 4},
+          {5, 1, 5},
+          {6, 1, 6},
+          {4, 1, 4},
+          {6, 1, 6},
+          {7, 1, 7},
+
+          // bottom face y = -1, normal (0,-1,0)
+          // quad 顺序: 0 -> 1 -> 5 -> 4
+          {0, 2, 8},
+          {1, 2, 9},
+          {5, 2, 10},
+          {0, 2, 8},
+          {5, 2, 10},
+          {4, 2, 11},
+
+          // top face y = +1, normal (0,1,0)
+          // quad 顺序: 3 -> 7 -> 6 -> 2
+          {3, 3, 12},
+          {7, 3, 13},
+          {6, 3, 14},
+          {3, 3, 12},
+          {6, 3, 14},
+          {2, 3, 15},
+
+          // left face x = -1, normal (-1,0,0)
+          // quad 顺序: 0 -> 4 -> 7 -> 3
+          {0, 4, 16},
+          {4, 4, 17},
+          {7, 4, 18},
+          {0, 4, 16},
+          {7, 4, 18},
+          {3, 4, 19},
+
+          // right face x = +1, normal (1,0,0)
+          // quad 顺序: 1 -> 2 -> 6 -> 5
+          {1, 5, 20},
+          {2, 5, 21},
+          {6, 5, 22},
+          {1, 5, 20},
+          {6, 5, 22},
+          {5, 5, 23}},
+         // subMeshes
+         {{0, 0, 36}}}
+        // default transform
+    }
+
 };
