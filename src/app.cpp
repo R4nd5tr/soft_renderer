@@ -1,6 +1,6 @@
-// app.cpp
-#define RGFW_IMPLEMENTATION
 #include "app.h"
+#define RGFWDEF
+#include "RGFW.h"
 #include <chrono>
 #include <thread>
 

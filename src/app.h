@@ -1,5 +1,4 @@
 #pragma once
-#include "RGFW.h"
 #include "frame.h"
 #include "math_utils.h"
 #include "model.h"
@@ -10,6 +9,9 @@
 #include <cstdint>
 #include <cstdlib>
 #include <vector>
+
+struct RGFW_window;
+struct RGFW_surface;
 
 class App {
 public:

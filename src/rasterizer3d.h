@@ -56,7 +56,7 @@ inline bool isTopLeftEdge(const ScreenPoint& a, const ScreenPoint& b) {
     return dy < 0 || (dy == 0 && dx > 0);
 #endif
 }
-inline ScreenTriangle projectPrimToTriangle(const NdcTriangle& t, int width, int height) {
+inline ScreenTriangle projectNdcToScreen(const NdcTriangle& t, int width, int height) {
     return {{toSubPixel(t.v1.x, width), toSubPixel(t.v1.y, height)},
             {toSubPixel(t.v2.x, width), toSubPixel(t.v2.y, height)},
             {toSubPixel(t.v3.x, width), toSubPixel(t.v3.y, height)}};
@@ -65,8 +65,8 @@ inline float depthAtBarycentric(const NdcTriangle& tri, float w1, float w2, floa
     return tri.v1.z * w1 + tri.v2.z * w2 + tri.v3.z * w3;
 }
 
-inline void rasterize3D(Frame& frame, const NdcTriangle& prim, const Color& color, ZBuffer& zBuffer) {
-    ScreenTriangle t = projectPrimToTriangle(prim, frame.width, frame.height);
+inline void rasterize3D(Frame& frame, const NdcTriangle& ndct, const Color& color, ZBuffer& zBuffer) {
+    ScreenTriangle t = projectNdcToScreen(ndct, frame.width, frame.height);
 
     // bounding box of the triangle, clamped to the frame boundaries
     int minX = std::max(0, FixedToPixel(std::min({t.p1.x, t.p2.x, t.p3.x})));
@@ -101,7 +101,7 @@ inline void rasterize3D(Frame& frame, const NdcTriangle& prim, const Color& colo
                            (w3 != 0 || isTopLeftEdge(t.p3, t.p1));
 
             if (inside && topLeft) {
-                float depth = depthAtBarycentric(prim,
+                float depth = depthAtBarycentric(ndct,
                                                  static_cast<float>(w2) / totalArea2,
                                                  static_cast<float>(w3) / totalArea2,
                                                  static_cast<float>(w1) / totalArea2);
@@ -147,19 +147,12 @@ struct Renderer {
                     const vec4& c2 = transformedVertices[mesh.indices[subMesh.indexOffset + i + 1].vertexIndex];
                     const vec4& c3 = transformedVertices[mesh.indices[subMesh.indexOffset + i + 2].vertexIndex];
 
-                    if (c1.w <= 0 || c2.w <= 0 || c3.w <= 0) continue;       // 简化近平面处理
-                    const NdcTriangle prim{c1 / c1.w, c2 / c2.w, c3 / c3.w}; // NDC
-                    rasterize3D(frame, prim, color, zBuffer);
+                    if (c1.w <= 0 || c2.w <= 0 || c3.w <= 0) continue;    // 简化近平面处理
+                    const NdcTriangle t{c1 / c1.w, c2 / c2.w, c3 / c3.w}; // NDC
+                    rasterize3D(frame, t, color, zBuffer);
                 }
             }
         }
-
-        // if (!writeZBufferToImage(zbuffer, "zbuffer.png")) {
-        //     std::cerr << "Failed to write Z-buffer image." << std::endl;
-        // }
-        // if (!writeFrameToImage(frame, "rendered_frame.png")) {
-        //     std::cerr << "Failed to write rendered frame image." << std::endl;
-        // }
     }
 
     void renderScene(const Scene& scene, Frame& frame) {
