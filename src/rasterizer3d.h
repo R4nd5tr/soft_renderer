@@ -122,10 +122,9 @@ inline void rasterize3D(Frame& frame, const Face& f, const Color& color, ZBuffer
 
 struct Renderer {
     std::vector<vec4> transformedVertices;
-    mat<4, 4> viewProj;
     ZBuffer zBuffer;
 
-    void render3DModel(const Model& model, Frame& frame) {
+    void render3DModel(const Model& model, Frame& frame, const mat<4, 4>& viewProj) {
         mat<4, 4> mvp = viewProj * model.transform;
         const size_t numVertices = model.vertices.size();
         if (transformedVertices.size() < numVertices) transformedVertices.resize(numVertices);
@@ -161,12 +160,12 @@ struct Renderer {
     }
 
     void renderScene(const Scene& scene, Frame& frame) {
-        viewProj = scene.camera.viewProjection();
+        mat<4, 4> viewProj = scene.camera.viewProjection();
         zBuffer.resize(frame.width, frame.height);
         zBuffer.clear();
 
         for (const auto& model : scene.models) {
-            render3DModel(model, frame);
+            render3DModel(model, frame, viewProj);
         }
     }
 };

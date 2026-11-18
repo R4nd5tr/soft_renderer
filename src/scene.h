@@ -1,7 +1,8 @@
 #pragma once
 #include "math_utils.h"
 #include "model.h"
-
+#include <algorithm>
+const float CAMERA_MIN_DISTANCE = 0.1f;
 struct Camera {
     vec3 position = {0, 0, 5};
     vec3 target = {0, 0, 0};
@@ -32,6 +33,26 @@ struct Camera {
         return projMatrix;
     }
     mat<4, 4> viewProjection() const { return perspective() * lookAt(); }
+    float distance() const { return norm(position - target); }
+    void move(const vec3& delta) {
+        position = position + delta;
+        target = target + delta;
+    }
+    void orbit(vec4 q) {
+        vec3 direction = position - target;
+        vec3 rotatedDirection = {direction.x * (1 - 2 * (q.y * q.y + q.z * q.z)) + direction.y * (2 * (q.x * q.y - q.z * q.w)) +
+                                     direction.z * (2 * (q.x * q.z + q.y * q.w)),
+                                 direction.x * (2 * (q.x * q.y + q.z * q.w)) + direction.y * (1 - 2 * (q.x * q.x + q.z * q.z)) +
+                                     direction.z * (2 * (q.y * q.z - q.x * q.w)),
+                                 direction.x * (2 * (q.x * q.z - q.y * q.w)) + direction.y * (2 * (q.y * q.z + q.x * q.w)) +
+                                     direction.z * (1 - 2 * (q.x * q.x + q.y * q.y))};
+        position = target + rotatedDirection;
+    }
+    void dolly(float delta) {
+        vec3 direction = normalized(target - position);
+        float newDistance = std::max(distance() - delta, CAMERA_MIN_DISTANCE);
+        position = target - direction * newDistance;
+    }
 };
 struct Light {                     // if lightVec.w == 0, it's a directional light
     vec4 lightVec = {0, 0, -1, 0}; // if lightVec.w == 1, it's a point light

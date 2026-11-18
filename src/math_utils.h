@@ -7,20 +7,20 @@
 // vectors and matrices from tinyrenderer (https://github.com/ssloy/tinyrenderer)
 // ========================================
 template <int n> struct vec {
-    double data[n] = {0};
-    double& operator[](const int i) {
+    float data[n] = {0};
+    float& operator[](const int i) {
         assert(i >= 0 && i < n);
         return data[i];
     }
-    double operator[](const int i) const {
+    float operator[](const int i) const {
         assert(i >= 0 && i < n);
         return data[i];
     }
 };
 
 // dot product of two vectors
-template <int n> double operator*(const vec<n>& lhs, const vec<n>& rhs) {
-    double ret = 0;
+template <int n> float operator*(const vec<n>& lhs, const vec<n>& rhs) {
+    float ret = 0;
     for (int i = 0; i < n; i++)
         ret += lhs[i] * rhs[i];
     return ret;
@@ -40,18 +40,18 @@ template <int n> vec<n> operator-(const vec<n>& lhs, const vec<n>& rhs) {
     return ret;
 }
 
-template <int n> vec<n> operator*(const vec<n>& lhs, const double& rhs) {
+template <int n> vec<n> operator*(const vec<n>& lhs, const float rhs) {
     vec<n> ret = lhs;
     for (int i = n; i--; ret[i] *= rhs)
         ;
     return ret;
 }
 
-template <int n> vec<n> operator*(const double& lhs, const vec<n>& rhs) {
+template <int n> vec<n> operator*(const float& lhs, const vec<n>& rhs) {
     return rhs * lhs;
 }
 
-template <int n> vec<n> operator/(const vec<n>& lhs, const double& rhs) {
+template <int n> vec<n> operator/(const vec<n>& lhs, const float& rhs) {
     vec<n> ret = lhs;
     for (int i = n; i--; ret[i] /= rhs)
         ;
@@ -65,36 +65,36 @@ template <int n> std::ostream& operator<<(std::ostream& out, const vec<n>& v) {
 }
 
 template <> struct vec<2> {
-    double x = 0, y = 0;
-    double& operator[](const int i) {
+    float x = 0, y = 0;
+    float& operator[](const int i) {
         assert(i >= 0 && i < 2);
         return i ? y : x;
     }
-    double operator[](const int i) const {
+    float operator[](const int i) const {
         assert(i >= 0 && i < 2);
         return i ? y : x;
     }
 };
 
 template <> struct vec<3> {
-    double x = 0, y = 0, z = 0;
-    double& operator[](const int i) {
+    float x = 0, y = 0, z = 0;
+    float& operator[](const int i) {
         assert(i >= 0 && i < 3);
         return i ? (1 == i ? y : z) : x;
     }
-    double operator[](const int i) const {
+    float operator[](const int i) const {
         assert(i >= 0 && i < 3);
         return i ? (1 == i ? y : z) : x;
     }
 };
 
 template <> struct vec<4> {
-    double x = 0, y = 0, z = 0, w = 0;
-    double& operator[](const int i) {
+    float x = 0, y = 0, z = 0, w = 0;
+    float& operator[](const int i) {
         assert(i >= 0 && i < 4);
         return i < 2 ? (i ? y : x) : (2 == i ? z : w);
     }
-    double operator[](const int i) const {
+    float operator[](const int i) const {
         assert(i >= 0 && i < 4);
         return i < 2 ? (i ? y : x) : (2 == i ? z : w);
     }
@@ -106,7 +106,7 @@ typedef vec<2> vec2;
 typedef vec<3> vec3;
 typedef vec<4> vec4;
 
-template <int n> double norm(const vec<n>& v) {
+template <int n> float norm(const vec<n>& v) {
     return std::sqrt(v * v);
 }
 
@@ -132,9 +132,9 @@ template <int nrows, int ncols> struct mat {
         return rows[idx];
     }
 
-    double det() const { return dt<ncols>::det(*this); }
+    float det() const { return dt<ncols>::det(*this); }
 
-    double cofactor(const int row, const int col) const {
+    float cofactor(const int row, const int col) const {
         mat<nrows - 1, ncols - 1> submatrix;
         for (int i = nrows - 1; i--;)
             for (int j = ncols - 1; j--; submatrix[i][j] = rows[i + int(i >= row)][j + int(j >= col)])
@@ -181,14 +181,14 @@ template <int R1, int C1, int C2> mat<R1, C2> operator*(const mat<R1, C1>& lhs, 
     return result;
 }
 
-template <int nrows, int ncols> mat<nrows, ncols> operator*(const mat<nrows, ncols>& lhs, const double& val) {
+template <int nrows, int ncols> mat<nrows, ncols> operator*(const mat<nrows, ncols>& lhs, const float& val) {
     mat<nrows, ncols> result;
     for (int i = nrows; i--; result[i] = lhs[i] * val)
         ;
     return result;
 }
 
-template <int nrows, int ncols> mat<nrows, ncols> operator/(const mat<nrows, ncols>& lhs, const double& val) {
+template <int nrows, int ncols> mat<nrows, ncols> operator/(const mat<nrows, ncols>& lhs, const float& val) {
     mat<nrows, ncols> result;
     for (int i = nrows; i--; result[i] = lhs[i] / val)
         ;
@@ -218,8 +218,8 @@ template <int nrows, int ncols> std::ostream& operator<<(std::ostream& out, cons
 }
 
 template <int n> struct dt { // template metaprogramming to compute the determinant recursively
-    static double det(const mat<n, n>& src) {
-        double ret = 0;
+    static float det(const mat<n, n>& src) {
+        float ret = 0;
         for (int i = n; i--; ret += src[0][i] * src.cofactor(0, i))
             ;
         return ret;
@@ -227,7 +227,7 @@ template <int n> struct dt { // template metaprogramming to compute the determin
 };
 
 template <> struct dt<1> { // template specialization to stop the recursion
-    static double det(const mat<1, 1>& src) { return src[0][0]; }
+    static float det(const mat<1, 1>& src) { return src[0][0]; }
 };
 // ========================================
 
