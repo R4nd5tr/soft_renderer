@@ -35,12 +35,23 @@ namespace fs = std::filesystem;
 
 // 编译选项
 #if defined(_MSC_VER) && !defined(__clang__)
-    #define FLAGS "/std:c++17", "/W4", "/EHsc", "/Zi", "/DEBUG", "/Od", "/DNOMINMAX"
+    #define FLAGS "/std:c++17", "/W4", "/EHsc", "/Z7", "/DEBUG", "/Od", "/DNOMINMAX"
     #define HEADER "/Isrc", "/external:Iexternal", "/external:W0"
 #else
     #define FLAGS \
         "-std=c++17", "-Wall", "-Wextra", "-Wno-unused-function", "-Wno-missing-field-initializers", "-g", "-O0", "-DNOMINMAX"
     #define HEADER "-Isrc", "-Iexternal"
+#endif
+
+// 编译器输出文件扩展名
+#if defined(_MSC_VER) && !defined(__clang__)
+    #define OBJ_EXT ".obj"
+    #define OBJ_OUT "/Fo:"
+    #define COMPILE_ONLY "/nologo", "/c"
+#else
+    #define OBJ_EXT ".o"
+    #define OBJ_OUT "-o"
+    #define COMPILE_ONLY "-c"
 #endif
 
 // 库文件
@@ -66,21 +77,28 @@ namespace fs = std::filesystem;
 #endif
 
 // 工具函数
-bool is_source_file(const fs::path& path) {
-    const auto extension = path.extension();
-    return extension == ".cpp" || extension == ".cc" || extension == ".c";
-}
 std::vector<std::string> collect_source_files(const fs::path& directory) {
     std::vector<std::string> sources;
     for (const auto& entry : fs::recursive_directory_iterator(directory)) {
-        if (!entry.is_regular_file()) {
-            continue;
-        }
-        if (is_source_file(entry.path())) {
+        if (!entry.is_regular_file()) continue;
+        const auto extension = entry.path().extension();
+        if (extension == ".cpp" || extension == ".cc" || extension == ".c") {
             sources.push_back(entry.path().generic_string());
         }
     }
     return sources;
+}
+std::vector<std::string> collect_header_files(const fs::path& directory) {
+    std::vector<std::string> headers;
+    for (const auto& entry : fs::recursive_directory_iterator(directory)) {
+        if (!entry.is_regular_file()) continue;
+        if (entry.path().filename() == "nob.h") continue; // 忽略 nob.h
+        const auto extension = entry.path().extension();
+        if (extension == ".h" || extension == ".hpp") {
+            headers.push_back(entry.path().generic_string());
+        }
+    }
+    return headers;
 }
 
 // 用法：使用 C++20 编译器编译此文件以引导生成构建系统，windows下注意输出文件名要改为 nob.exe
@@ -94,30 +112,76 @@ std::vector<std::string> collect_source_files(const fs::path& directory) {
 int main(int argc, char** argv) {
     NOB_GO_REBUILD_URSELF(argc, argv);
 
-    // 收集所有源文件
+    // 检查 src/ 和 external/ 目录是否存在
     if (!fs::exists("src")) {
         nob_log(NOB_ERROR, "src/ not found");
         return 1;
     }
+    if (!fs::exists("external")) {
+        nob_log(NOB_ERROR, "external/ not found");
+        return 1;
+    }
+
+    // 收集所有源文件
     std::vector<std::string> sources = collect_source_files("src");
     if (sources.empty()) {
         nob_log(NOB_ERROR, "No source files found in src/");
         return 1;
     }
+    // 收集所有头文件
+    std::vector<std::string> headers = collect_header_files("src");
+    if (headers.empty()) {
+        nob_log(NOB_ERROR, "No header files found in src/");
+        return 1;
+    }
+    std::vector<std::string> external_headers = collect_header_files("external");
+    if (external_headers.empty()) {
+        nob_log(NOB_ERROR, "No header files found in external/");
+        return 1;
+    }
+    headers.insert(headers.end(), external_headers.begin(), external_headers.end());
+
+    // 创建 build/ 目录
+    if (!nob_mkdir_if_not_exists("build")) return 1;
 
     Nob_Cmd cmd = {0};
-    // 构建命令
-    nob_cmd_append(&cmd, CC, FLAGS, HEADER);
-    // 源文件
-    for (const auto& source : sources) {
-        nob_cmd_append(&cmd, source.c_str());
-    }
-    // 库文件
-    nob_cmd_append(&cmd, LIBS);
-    // 输出文件
-    nob_cmd_append(&cmd, OUTPUT_FLAG, OUTPUT_FILE);
+    Nob_Procs procs = {0};
+    std::vector<std::string> objects;
 
-    // 执行构建命令
+    for (const auto& source : sources) {
+        // 生成对应的目标文件名
+        std::string obj = "build/" + fs::path(source).stem().string() + OBJ_EXT;
+        objects.push_back(obj);
+
+        // 检查是否需要重新编译
+        std::vector<const char*> inputs = {source.c_str()};
+        for (const auto& header : headers)
+            inputs.push_back(header.c_str());
+
+        // 检查目标文件是否需要重新编译
+        const int needs = nob_needs_rebuild(obj.c_str(), inputs.data(), inputs.size());
+        if (needs < 0) return 1;
+        if (needs == 0) continue; // 没变，跳过
+
+        // 如果当前并行编译的进程数已经达到 CPU 核心数，则等待所有进程结束
+        if (procs.count >= static_cast<size_t>(nob_nprocs())) {
+            if (!nob_procs_flush(&procs)) return 1;
+        }
+
+        // 编译源文件
+        nob_log(NOB_INFO, "Compiling %s -> %s", source.c_str(), obj.c_str());
+        nob_cmd_append(&cmd, CC, FLAGS, HEADER, COMPILE_ONLY, source.c_str(), OBJ_OUT, obj.c_str());
+        if (!nob_cmd_run(&cmd, .async = &procs)) return 1; // 只登记进程，立即返回
+    }
+
+    // 等所有编译进程结束，任何一个失败都返回 false
+    if (!nob_procs_flush(&procs)) return 1;
+
+    // 链接
+    nob_cmd_append(&cmd, CC);
+    for (const auto& obj : objects)
+        nob_cmd_append(&cmd, obj.c_str());
+    nob_cmd_append(&cmd, LIBS, OUTPUT_FLAG, OUTPUT_FILE);
     if (!nob_cmd_run(&cmd)) return 1;
 
     // 运行生成的可执行文件

@@ -11,3 +11,4 @@ obj/
 *.ilk
 *.pdb
 *.png
+build/
