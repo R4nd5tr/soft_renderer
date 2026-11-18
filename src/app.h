@@ -26,7 +26,7 @@ public:
     void present();
 
     Scene loadScene();
-    void updateScene();
+    void updateScene(float deltaTime); // seconds
 
     int renderWidth = 1600, renderHeight = 900;
     int renderScale = 1;

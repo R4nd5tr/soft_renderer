@@ -50,12 +50,17 @@ void App::run() {
     renderer.renderScene(scene, renderFrame);
     present();
 
+    auto lastFrameTime = std::chrono::steady_clock::now();
     while (RGFW_window_shouldClose(win) == RGFW_FALSE) {
         handleEvents();
 
+        const auto now = std::chrono::steady_clock::now();
+        const float deltaTime = std::chrono::duration<float>(now - lastFrameTime).count();
+        lastFrameTime = now;
+
         if (!paused || stepRequested) {
             clearFrame(renderFrame);
-            updateScene();
+            updateScene(deltaTime);
             renderer.renderScene(scene, renderFrame);
             frameNumber += 1;
             stepRequested = false;
@@ -77,9 +82,11 @@ Scene App::loadScene() {
     scene.camera.aspect = static_cast<float>(renderWidth) / renderHeight;
     // ============================================================
 
-        scene.addModel("obj/teapot.obj");
+    scene.addModel("obj/african_head/african_head.obj");
 
     return scene;
 }
 
-void App::updateScene() {}
+void App::updateScene(float deltaTime) {
+    scene.camera.orbitYaw(deltaTime * 0.5f); // 相机绕目标点旋转
+}

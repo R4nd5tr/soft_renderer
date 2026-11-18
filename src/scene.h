@@ -2,9 +2,9 @@
 #include "math_utils.h"
 #include "model.h"
 #include <algorithm>
-const float CAMERA_MIN_DISTANCE = 0.1f;
+constexpr float CAMERA_MIN_DISTANCE = 0.1f;
 struct Camera {
-    vec3 position = {0, 0, 5};
+    vec3 position = {0, 5, 5}; // -左+右，-下+上，-前+后
     vec3 target = {0, 0, 0};
     vec3 up = {0, 1, 0};
     float fov = 90.0f;
@@ -47,6 +47,10 @@ struct Camera {
                                  direction.x * (2 * (q.x * q.z - q.y * q.w)) + direction.y * (2 * (q.y * q.z + q.x * q.w)) +
                                      direction.z * (1 - 2 * (q.x * q.x + q.y * q.y))};
         position = target + rotatedDirection;
+    }
+    void orbitYaw(float radians) {
+        const float half = radians * 0.5f;
+        orbit(vec4{0.0f, std::sin(half), 0.0f, std::cos(half)});
     }
     void dolly(float delta) {
         vec3 direction = normalized(target - position);
