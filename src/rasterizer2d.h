@@ -16,18 +16,6 @@ struct Triangle {
     Point p3;
 };
 
-#define BOTTOM_LEFT_ORIGIN
-inline void drawPixel(Frame& frame, const Point& p, const Color& color) {
-    if (frame.data.empty()) return;
-    if (p.x >= frame.width || p.x < 0 || p.y >= frame.height || p.y < 0) return;
-
-#ifdef BOTTOM_LEFT_ORIGIN
-    frame.data[(frame.height - 1 - p.y) * frame.width + p.x] = color;
-#else
-    frame.data[p.y * frame.width + p.x] = color;
-#endif
-}
-
 void drawLine(Frame& frame, const Point& p1, const Point& p2, const Color& color) {
     if (frame.data.empty()) return;
 
@@ -40,7 +28,7 @@ void drawLine(Frame& frame, const Point& p1, const Point& p2, const Color& color
     int err = dx - dy;
 
     while (true) {
-        drawPixel(frame, Point{x, y}, color);
+        drawPixel(frame, {x, y}, color);
         if ((x == p2.x && y == p2.y) || x < 0 || y < 0 || x >= frame.width || y >= frame.height) break;
         int e2 = 2 * err;
         if (e2 > -dy) {
@@ -56,7 +44,7 @@ void drawLine(Frame& frame, const Point& p1, const Point& p2, const Color& color
 void drawCircle(Frame& frame, const Point& center, int radius, const Color& color) {
     if (frame.data.empty() || radius < 0) return;
     if (radius == 0) {
-        drawPixel(frame, center, color);
+        drawPixel(frame, {center.x, center.y}, color);
         return;
     }
 
@@ -68,14 +56,14 @@ void drawCircle(Frame& frame, const Point& center, int radius, const Color& colo
         } else {
             e += 2 * x + 1;
         }
-        drawPixel(frame, Point{center.x - x, center.y - y}, color);
-        drawPixel(frame, Point{center.x + x, center.y - y}, color);
-        drawPixel(frame, Point{center.x - x, center.y + y}, color);
-        drawPixel(frame, Point{center.x + x, center.y + y}, color);
-        drawPixel(frame, Point{center.x - y, center.y - x}, color);
-        drawPixel(frame, Point{center.x + y, center.y - x}, color);
-        drawPixel(frame, Point{center.x - y, center.y + x}, color);
-        drawPixel(frame, Point{center.x + y, center.y + x}, color);
+        drawPixel(frame, {center.x - x, center.y - y}, color);
+        drawPixel(frame, {center.x + x, center.y - y}, color);
+        drawPixel(frame, {center.x - x, center.y + y}, color);
+        drawPixel(frame, {center.x + x, center.y + y}, color);
+        drawPixel(frame, {center.x - y, center.y - x}, color);
+        drawPixel(frame, {center.x + y, center.y - x}, color);
+        drawPixel(frame, {center.x - y, center.y + x}, color);
+        drawPixel(frame, {center.x + y, center.y + x}, color);
         x++;
     }
 }
@@ -124,7 +112,7 @@ void drawTriangle(Frame& frame, const Triangle& t, const Color& color) {
                 // top-left rule to avoid double drawing of shared edges
                 ((w1 != 0 || isTopLeftEdge(t.p1, t.p2)) && (w2 != 0 || isTopLeftEdge(t.p2, t.p3)) &&
                  (w3 != 0 || isTopLeftEdge(t.p3, t.p1))))
-                drawPixel(frame, Point{x, y}, color);
+                drawPixel(frame, {x, y}, color);
 
             w1 += deltaW1Col;
             w2 += deltaW2Col;
@@ -166,7 +154,7 @@ void drawRGBInterpolatedTriangle(Frame& frame, const Triangle& t, float wirefram
                 continue;
 
             drawPixel(frame,
-                      p,
+                      {p.x, p.y},
                       {static_cast<uint8_t>(w1 * 255 / totalArea2),
                        static_cast<uint8_t>(w3 * 255 / totalArea2),
                        static_cast<uint8_t>(w2 * 255 / totalArea2)});

@@ -2,6 +2,7 @@
 #include "frame.h"
 #include "math_utils.h"
 #include "model.h"
+#include "scene.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -44,9 +45,6 @@ struct Face {
 inline int signedArea2(const Triangle& t) {
     return (t.p2.x - t.p1.x) * (t.p3.y - t.p1.y) - (t.p3.x - t.p1.x) * (t.p2.y - t.p1.y);
 }
-inline float signedArea2(const Face& f) {
-    return (f.v2.x - f.v1.x) * (f.v3.y - f.v1.y) - (f.v3.x - f.v1.x) * (f.v2.y - f.v1.y);
-}
 inline bool isTopLeftEdge(const Point& a, const Point& b) {
     const int dx = b.x - a.x;
     const int dy = b.y - a.y;
@@ -65,7 +63,7 @@ inline float depthAtBarycentric(const Face& f, float w1, float w2, float w3) {
     return f.v1.z * w1 + f.v2.z * w2 + f.v3.z * w3;
 }
 
-void drawTriangle3D(Frame& frame, const Face& f, const Color& color, ZBuffer& zbuffer) {
+inline void rasterize3D(Frame& frame, const Face& f, const Color& color, ZBuffer& zBuffer) {
     Triangle t = projectFaceToTriangle(f, frame.width, frame.height); // only supports [-1,1]^3 model space for now
 
     // bounding box of the triangle, clamped to the frame boundaries
@@ -100,12 +98,12 @@ void drawTriangle3D(Frame& frame, const Face& f, const Color& color, ZBuffer& zb
                            (w3 != 0 || isTopLeftEdge(t.p3, t.p1));
 
             if (inside && topLeft) {
-                float depth = -depthAtBarycentric(f,
-                                                  static_cast<float>(w2) / totalArea2,
-                                                  static_cast<float>(w3) / totalArea2,
-                                                  static_cast<float>(w1) / totalArea2);
+                float depth = depthAtBarycentric(f,
+                                                 static_cast<float>(w2) / totalArea2,
+                                                 static_cast<float>(w3) / totalArea2,
+                                                 static_cast<float>(w1) / totalArea2);
 
-                float& z = zbuffer.data[y * zbuffer.width + x];
+                float& z = zBuffer.data[y * frame.width + x];
                 if (depth <= z) {
                     z = depth;
                     drawPixel(frame, {x, y}, color);
@@ -122,33 +120,53 @@ void drawTriangle3D(Frame& frame, const Face& f, const Color& color, ZBuffer& zb
     }
 }
 
-void render3DModel(const Model& model, Frame& frame) {
-    ZBuffer zbuffer{
-        std::vector<float>(frame.width * frame.height, std::numeric_limits<float>::infinity()), frame.width, frame.height};
+struct Renderer {
+    std::vector<vec4> transformedVertices;
+    mat<4, 4> viewProj;
+    ZBuffer zBuffer;
 
-    for (const auto& mesh : model.meshes) {
-        for (const auto& subMesh : mesh.subMeshes) {
-            for (size_t i = 0; i < subMesh.indexCount; i += 3) {
-                const VertexIndices& vi1 = mesh.indices[subMesh.indexOffset + i];
-                const VertexIndices& vi2 = mesh.indices[subMesh.indexOffset + i + 1];
-                const VertexIndices& vi3 = mesh.indices[subMesh.indexOffset + i + 2];
+    void render3DModel(const Model& model, Frame& frame) {
+        mat<4, 4> mvp = viewProj * model.transform;
+        const size_t numVertices = model.vertices.size();
+        if (transformedVertices.size() < numVertices) transformedVertices.resize(numVertices);
 
-                Face face{model.transform * model.vertices[vi1.vertexIndex],
-                          model.transform * model.vertices[vi2.vertexIndex],
-                          model.transform * model.vertices[vi3.vertexIndex]};
-                Color color{static_cast<uint8_t>(std::rand() % 256),
-                            static_cast<uint8_t>(std::rand() % 256),
-                            static_cast<uint8_t>(std::rand() % 256)};
+        // Transform all vertices of the model to clip space
+        for (size_t i = 0; i < numVertices; ++i)
+            transformedVertices[i] = mvp * model.vertices[i];
 
-                drawTriangle3D(frame, face, color, zbuffer);
+        for (const auto& mesh : model.meshes) {
+            for (const auto& subMesh : mesh.subMeshes) {
+                for (size_t i = 0; i < subMesh.indexCount; i += 3) {
+                    Color color{static_cast<uint8_t>(std::rand() % 256),
+                                static_cast<uint8_t>(std::rand() % 256),
+                                static_cast<uint8_t>(std::rand() % 256)};
+
+                    const vec4& c1 = transformedVertices[mesh.indices[subMesh.indexOffset + i].vertexIndex];
+                    const vec4& c2 = transformedVertices[mesh.indices[subMesh.indexOffset + i + 1].vertexIndex];
+                    const vec4& c3 = transformedVertices[mesh.indices[subMesh.indexOffset + i + 2].vertexIndex];
+
+                    if (c1.w <= 0 || c2.w <= 0 || c3.w <= 0) continue; // 简化近平面处理
+                    const Face face{c1 / c1.w, c2 / c2.w, c3 / c3.w};  // NDC
+                    rasterize3D(frame, face, color, zBuffer);
+                }
             }
         }
+
+        // if (!writeZBufferToImage(zbuffer, "zbuffer.png")) {
+        //     std::cerr << "Failed to write Z-buffer image." << std::endl;
+        // }
+        // if (!writeFrameToImage(frame, "rendered_frame.png")) {
+        //     std::cerr << "Failed to write rendered frame image." << std::endl;
+        // }
     }
 
-    // if (!writeZBufferToImage(zbuffer, "zbuffer.png")) {
-    //     std::cerr << "Failed to write Z-buffer image." << std::endl;
-    // }
-    // if (!writeFrameToImage(frame, "rendered_frame.png")) {
-    //     std::cerr << "Failed to write rendered frame image." << std::endl;
-    // }
-}
+    void renderScene(const Scene& scene, Frame& frame) {
+        viewProj = scene.camera.viewProjection();
+        zBuffer.resize(frame.width, frame.height);
+        zBuffer.clear();
+
+        for (const auto& model : scene.models) {
+            render3DModel(model, frame);
+        }
+    }
+};
