@@ -30,7 +30,7 @@ public:
     Scene loadScene();
     void updateScene(float deltaTime); // seconds
 
-    int renderWidth = 1600, renderHeight = 900;
+    int renderWidth = 720, renderHeight = 480;
     int renderScale = 1;
     int windowWidth = renderWidth * renderScale, windowHeight = renderHeight * renderScale;
     Frame renderFrame{std::vector<Color>(renderWidth * renderHeight), renderWidth, renderHeight};
@@ -42,7 +42,7 @@ public:
     Scene scene;
     Renderer renderer;
 
-    bool paused = true;
+    bool paused = false;
     bool stepRequested = false;
     size_t frameNumber = 0;
 };

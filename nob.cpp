@@ -185,8 +185,8 @@ int main(int argc, char** argv) {
     if (!nob_cmd_run(&cmd)) return 1;
 
     // 运行生成的可执行文件
-    // nob_cmd_append(&cmd, "./" OUTPUT_FILE);
-    // if (!nob_cmd_run(&cmd)) return 1;
+    nob_cmd_append(&cmd, "./" OUTPUT_FILE);
+    if (!nob_cmd_run(&cmd)) return 1;
 
     return 0;
 }

@@ -67,7 +67,6 @@ void App::run() {
         }
 
         present();
-        std::this_thread::sleep_for(std::chrono::milliseconds(16));
     }
 }
 
@@ -82,7 +81,7 @@ Scene App::loadScene() {
     scene.camera.aspect = static_cast<float>(renderWidth) / renderHeight;
     // ============================================================
 
-    scene.addModel("obj/african_head/african_head.obj");
+    scene.addModel(CUBE_MODEL);
 
     return scene;
 }

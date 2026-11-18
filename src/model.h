@@ -81,7 +81,7 @@ inline const Material DEFAULT_MATERIAL = [] {
     material.name = "DefaultMaterial";
     return material;
 }();
-const Model CUBE_MODEL = {
+inline const Model CUBE_MODEL = {
 
     {},                 // default path
     {DEFAULT_MATERIAL}, // default material

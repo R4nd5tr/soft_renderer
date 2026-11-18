@@ -47,7 +47,7 @@ inline void drawPixel(Frame& frame, const PixelCoord& p, const Color& color) {
 #endif
 }
 
-inline bool writeFrameToImage(const Frame& frame, const std::string& filename);
+bool writeFrameToImage(const Frame& frame, const std::string& filename);
 
 struct ZBuffer {
     std::vector<float> data;

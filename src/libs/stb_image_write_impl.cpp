@@ -2,7 +2,7 @@
 #include "frame.h"
 #include "stb_image_write.h"
 
-inline bool writeFrameToImage(const Frame& frame, const std::string& filename) {
+bool writeFrameToImage(const Frame& frame, const std::string& filename) {
     if (frame.data.empty() || frame.width <= 0 || frame.height <= 0) return false;
     return stbi_write_png(
         filename.c_str(), frame.width, frame.height, sizeof(Color), frame.data.data(), frame.width * sizeof(Color));
