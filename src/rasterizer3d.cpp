@@ -27,21 +27,18 @@ bool isTopLeftEdge(const ScreenPoint& a, const ScreenPoint& b) {
     return dy < 0 || (dy == 0 && dx > 0);
 #endif
 }
-NdcTriangle clipToNdc(const ClipTriangle& t) {
-    auto& [c1, c2, c3] = t.c;
-    return {c1.clipVert / c1.clipVert.w, c2.clipVert / c2.clipVert.w, c3.clipVert / c3.clipVert.w};
+NdcTriangle clipToNdc(const Primitive& t) {
+    const auto& [v1, v2, v3] = t.v;
+    return {v1.clipVert / v1.clipVert.w, v2.clipVert / v2.clipVert.w, v3.clipVert / v3.clipVert.w};
 }
 ScreenTriangle projectNdcToScreen(const NdcTriangle& t, int width, int height) {
     return {{toSubPixel(t.v1.x, width), toSubPixel(t.v1.y, height)},
             {toSubPixel(t.v2.x, width), toSubPixel(t.v2.y, height)},
             {toSubPixel(t.v3.x, width), toSubPixel(t.v3.y, height)}};
 }
-float depthAtBarycentric(const NdcTriangle& tri, float w1, float w2, float w3) {
-    return tri.v1.z * w1 + tri.v2.z * w2 + tri.v3.z * w3;
-}
-
-void rasterize3D(Frame& frame, ZBuffer& zBuffer, const ClipTriangle& clipt, const Material& material) {
-    NdcTriangle ndct = clipToNdc(clipt);
+void rasterize3D(Frame& frame, ZBuffer& zBuffer, const Primitive& tri, const Material& material) {
+    const auto& [v1, v2, v3] = tri.v;
+    NdcTriangle ndct = clipToNdc(tri);
     ScreenTriangle t = projectNdcToScreen(ndct, frame.width, frame.height);
 
     // bounding box of the triangle, clamped to the frame boundaries
@@ -53,64 +50,66 @@ void rasterize3D(Frame& frame, ZBuffer& zBuffer, const ClipTriangle& clipt, cons
 
     Fixed totalArea2 = signedArea2(t);
     if (totalArea2 < MIN_AREA2) return; // backface culling and degenerate triangle check
+    const float invArea2 = 1.0f / static_cast<float>(totalArea2);
 
     // precompute per-pixel deltas for efficient barycentric coordinate updates.
-    Fixed deltaW1Col = (t.p1.y - t.p2.y) * SUBPIXEL_SCALE;
-    Fixed deltaW2Col = (t.p2.y - t.p3.y) * SUBPIXEL_SCALE;
-    Fixed deltaW3Col = (t.p3.y - t.p1.y) * SUBPIXEL_SCALE;
-    Fixed deltaW1Row = (t.p2.x - t.p1.x) * SUBPIXEL_SCALE;
-    Fixed deltaW2Row = (t.p3.x - t.p2.x) * SUBPIXEL_SCALE;
-    Fixed deltaW3Row = (t.p1.x - t.p3.x) * SUBPIXEL_SCALE;
+    Fixed deltaE1Col = (t.p2.y - t.p3.y) * SUBPIXEL_SCALE;
+    Fixed deltaE2Col = (t.p3.y - t.p1.y) * SUBPIXEL_SCALE;
+    Fixed deltaE3Col = (t.p1.y - t.p2.y) * SUBPIXEL_SCALE;
+    Fixed deltaE1Row = (t.p3.x - t.p2.x) * SUBPIXEL_SCALE;
+    Fixed deltaE2Row = (t.p1.x - t.p3.x) * SUBPIXEL_SCALE;
+    Fixed deltaE3Row = (t.p2.x - t.p1.x) * SUBPIXEL_SCALE;
     ScreenPoint p0{static_cast<Fixed>(minX) * SUBPIXEL_SCALE + HALF_PIXEL,
                    static_cast<Fixed>(minY) * SUBPIXEL_SCALE + HALF_PIXEL}; // center of the pixel at (minX, minY)
-    Fixed w1Row = signedArea2({p0, t.p1, t.p2});
-    Fixed w2Row = signedArea2({p0, t.p2, t.p3});
-    Fixed w3Row = signedArea2({p0, t.p3, t.p1});
+    Fixed e1Row = signedArea2({p0, t.p2, t.p3});
+    Fixed e2Row = signedArea2({p0, t.p3, t.p1});
+    Fixed e3Row = signedArea2({p0, t.p1, t.p2});
+
+    const float invClipW1 = 1.0f / v1.clipVert.w;
+    const float invClipW2 = 1.0f / v2.clipVert.w;
+    const float invClipW3 = 1.0f / v3.clipVert.w;
 
     // iterate over the bounding box of the triangle per pixel
     for (int y = minY; y <= maxY; y++) {
-        Fixed w1 = w1Row, w2 = w2Row, w3 = w3Row;
+        Fixed e3 = e3Row, e1 = e1Row, e2 = e2Row; // e = signedArea2 of the sub-triangle, w1 + w2 + w3 = totalArea2
         for (int x = minX; x <= maxX; x++) {
-            bool inside = w1 >= 0 && w2 >= 0 && w3 >= 0;
-            bool topLeft = (w1 != 0 || isTopLeftEdge(t.p1, t.p2)) && (w2 != 0 || isTopLeftEdge(t.p2, t.p3)) &&
-                           (w3 != 0 || isTopLeftEdge(t.p3, t.p1));
-
+            bool inside = e3 >= 0 && e1 >= 0 && e2 >= 0;
+            bool topLeft = (e1 != 0 || isTopLeftEdge(t.p2, t.p3)) && (e2 != 0 || isTopLeftEdge(t.p3, t.p1)) &&
+                           (e3 != 0 || isTopLeftEdge(t.p1, t.p2));
             if (inside && topLeft) {
-                float depth = depthAtBarycentric(ndct,
-                                                 static_cast<float>(w2) / totalArea2,
-                                                 static_cast<float>(w3) / totalArea2,
-                                                 static_cast<float>(w1) / totalArea2);
-
+                vec3 barycentric{
+                    static_cast<float>(e1) * invArea2, static_cast<float>(e2) * invArea2, static_cast<float>(e3) * invArea2};
+                const auto& [b1, b2, b3] = barycentric; // Normalized barycentric coordinates, b1 + b2 + b3 == 1
+                const float depth = ndct.v1.z * b1 + ndct.v2.z * b2 + ndct.v3.z * b3;
                 float& z = zBuffer.data[y * frame.width + x];
                 if (depth <= z) {
                     z = depth;
                     drawPixel(frame,
                               {x, y},
-                              {static_cast<uint8_t>(w2 * 255 / totalArea2),   // R = v1 权重
-                               static_cast<uint8_t>(w3 * 255 / totalArea2),   // G = v2 权重
-                               static_cast<uint8_t>(w1 * 255 / totalArea2)}); // B = v3 权重
+                              {static_cast<uint8_t>(b1 * 255.0f),
+                               static_cast<uint8_t>(b2 * 255.0f),
+                               static_cast<uint8_t>(b3 * 255.0f)});
                 }
             }
-
-            w1 += deltaW1Col;
-            w2 += deltaW2Col;
-            w3 += deltaW3Col;
+            e1 += deltaE1Col;
+            e2 += deltaE2Col;
+            e3 += deltaE3Col;
         }
-        w1Row += deltaW1Row;
-        w2Row += deltaW2Row;
-        w3Row += deltaW3Row;
+        e1Row += deltaE1Row;
+        e2Row += deltaE2Row;
+        e3Row += deltaE3Row;
     }
 }
-ClipTriangle Renderer::getClipTriangle(const Model& model, const Mesh& mesh, const SubMesh& subMesh, size_t triIndex) const {
-    ClipTriangle clipt;
+Primitive Renderer::getPrimitive(const Model& model, const Mesh& mesh, const SubMesh& subMesh, size_t triIndex) const {
+    Primitive tri;
     for (int i = 0; i < 3; ++i) {
         const VertexIndices& vi = mesh.indices[subMesh.indexOffset + triIndex + i];
-        clipt.c[i].clipVert = clipVertices[vi.vertexIndex];
-        clipt.c[i].worldNormal = worldNormals[vi.normalIndex];
-        clipt.c[i].worldVert = worldVertices[vi.vertexIndex];
-        clipt.c[i].uv = model.uvs[vi.uvIndex];
+        tri.v[i].clipVert = clipVertices[vi.vertexIndex];
+        tri.v[i].worldPos = worldVertices[vi.vertexIndex];
+        if (vi.normalIndex >= 0) tri.v[i].worldNormal = worldNormals[vi.normalIndex];
+        if (vi.uvIndex >= 0) tri.v[i].uv = model.uvs[vi.uvIndex];
     }
-    return clipt;
+    return tri;
 }
 void Renderer::render3DModel(const Model& model, Frame& frame, const mat<4, 4>& viewProj) {
     mat<4, 4> mvp = viewProj * model.transform;
@@ -118,7 +117,7 @@ void Renderer::render3DModel(const Model& model, Frame& frame, const mat<4, 4>& 
 
     const size_t numVertices = model.vertices.size();
     clipVertices.resize(numVertices);
-    worldNormals.resize(numVertices);
+    worldNormals.resize(model.normals.size());
     worldVertices.resize(numVertices);
 
     // Transform all vertices of the model to clip space and world space
@@ -133,9 +132,9 @@ void Renderer::render3DModel(const Model& model, Frame& frame, const mat<4, 4>& 
     for (const auto& mesh : model.meshes) {
         for (const auto& subMesh : mesh.subMeshes) {
             for (size_t i = 0; i < subMesh.indexCount; i += 3) {
-                auto t = getClipTriangle(model, mesh, subMesh, i);
-                auto& [c1, c2, c3] = t.c;
-                if (c1.clipVert.w <= 0 || c2.clipVert.w <= 0 || c3.clipVert.w <= 0) continue; // 简化近平面处理
+                const auto t = getPrimitive(model, mesh, subMesh, i);
+                auto& [v1, v2, v3] = t.v;
+                if (v1.clipVert.w <= 0 || v2.clipVert.w <= 0 || v3.clipVert.w <= 0) continue; // 简化近平面处理
                 rasterize3D(frame, zBuffer, t, model.materials[subMesh.materialIndex]);
             }
         }

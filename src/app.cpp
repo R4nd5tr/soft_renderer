@@ -81,7 +81,7 @@ Scene App::loadScene() {
     scene.camera.aspect = static_cast<float>(renderWidth) / renderHeight;
     // ============================================================
 
-    scene.addModel(CUBE_MODEL);
+    scene.addModel("obj/miku_plush/miku_plush.obj");
 
     return scene;
 }
