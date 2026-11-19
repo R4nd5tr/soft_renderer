@@ -28,11 +28,23 @@ struct NdcTriangle {
     vec4 v2;
     vec4 v3;
 };
+struct ClipVertex {
+    vec4 clipVert = {0, 0, 0, 0}; // 裁剪空间坐标
+    vec3 worldNormal = {0, 0, 1}; // 世界空间法线
+    vec3 worldVert = {0, 0, 0};   // 世界空间位置（光照要用）
+    vec2 uv = {0, 0};             // 纹理坐标（OBJ 原始朝向）
+};
+struct ClipTriangle {
+    ClipVertex c[3];
+};
 
 struct Renderer {
     std::vector<vec4> clipVertices;
+    std::vector<vec3> worldNormals;
+    std::vector<vec3> worldVertices;
     ZBuffer zBuffer;
 
+    ClipTriangle getClipTriangle(const Model& model, const Mesh& mesh, const SubMesh& sub, size_t triIndex) const;
     void render3DModel(const Model& model, Frame& frame, const mat<4, 4>& viewProj);
     void renderScene(const Scene& scene, Frame& frame);
 };

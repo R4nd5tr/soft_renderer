@@ -27,6 +27,10 @@ bool isTopLeftEdge(const ScreenPoint& a, const ScreenPoint& b) {
     return dy < 0 || (dy == 0 && dx > 0);
 #endif
 }
+NdcTriangle clipToNdc(const ClipTriangle& t) {
+    auto& [c1, c2, c3] = t.c;
+    return {c1.clipVert / c1.clipVert.w, c2.clipVert / c2.clipVert.w, c3.clipVert / c3.clipVert.w};
+}
 ScreenTriangle projectNdcToScreen(const NdcTriangle& t, int width, int height) {
     return {{toSubPixel(t.v1.x, width), toSubPixel(t.v1.y, height)},
             {toSubPixel(t.v2.x, width), toSubPixel(t.v2.y, height)},
@@ -36,7 +40,8 @@ float depthAtBarycentric(const NdcTriangle& tri, float w1, float w2, float w3) {
     return tri.v1.z * w1 + tri.v2.z * w2 + tri.v3.z * w3;
 }
 
-void rasterize3D(Frame& frame, const NdcTriangle& ndct, const Color& color, ZBuffer& zBuffer) {
+void rasterize3D(Frame& frame, ZBuffer& zBuffer, const ClipTriangle& clipt, const Material& material) {
+    NdcTriangle ndct = clipToNdc(clipt);
     ScreenTriangle t = projectNdcToScreen(ndct, frame.width, frame.height);
 
     // bounding box of the triangle, clamped to the frame boundaries
@@ -56,7 +61,6 @@ void rasterize3D(Frame& frame, const NdcTriangle& ndct, const Color& color, ZBuf
     Fixed deltaW1Row = (t.p2.x - t.p1.x) * SUBPIXEL_SCALE;
     Fixed deltaW2Row = (t.p3.x - t.p2.x) * SUBPIXEL_SCALE;
     Fixed deltaW3Row = (t.p1.x - t.p3.x) * SUBPIXEL_SCALE;
-
     ScreenPoint p0{static_cast<Fixed>(minX) * SUBPIXEL_SCALE + HALF_PIXEL,
                    static_cast<Fixed>(minY) * SUBPIXEL_SCALE + HALF_PIXEL}; // center of the pixel at (minX, minY)
     Fixed w1Row = signedArea2({p0, t.p1, t.p2});
@@ -80,7 +84,11 @@ void rasterize3D(Frame& frame, const NdcTriangle& ndct, const Color& color, ZBuf
                 float& z = zBuffer.data[y * frame.width + x];
                 if (depth <= z) {
                     z = depth;
-                    drawPixel(frame, {x, y}, color);
+                    drawPixel(frame,
+                              {x, y},
+                              {static_cast<uint8_t>(w2 * 255 / totalArea2),   // R = v1 权重
+                               static_cast<uint8_t>(w3 * 255 / totalArea2),   // G = v2 权重
+                               static_cast<uint8_t>(w1 * 255 / totalArea2)}); // B = v3 权重
                 }
             }
 
@@ -93,29 +101,42 @@ void rasterize3D(Frame& frame, const NdcTriangle& ndct, const Color& color, ZBuf
         w3Row += deltaW3Row;
     }
 }
-
+ClipTriangle Renderer::getClipTriangle(const Model& model, const Mesh& mesh, const SubMesh& subMesh, size_t triIndex) const {
+    ClipTriangle clipt;
+    for (int i = 0; i < 3; ++i) {
+        const VertexIndices& vi = mesh.indices[subMesh.indexOffset + triIndex + i];
+        clipt.c[i].clipVert = clipVertices[vi.vertexIndex];
+        clipt.c[i].worldNormal = worldNormals[vi.normalIndex];
+        clipt.c[i].worldVert = worldVertices[vi.vertexIndex];
+        clipt.c[i].uv = model.uvs[vi.uvIndex];
+    }
+    return clipt;
+}
 void Renderer::render3DModel(const Model& model, Frame& frame, const mat<4, 4>& viewProj) {
     mat<4, 4> mvp = viewProj * model.transform;
-    const size_t numVertices = model.vertices.size();
-    if (clipVertices.size() < numVertices) clipVertices.resize(numVertices);
+    mat<4, 4> normalMat = model.transform.invert_transpose();
 
-    // Transform all vertices of the model to clip space
-    for (size_t i = 0; i < numVertices; ++i)
+    const size_t numVertices = model.vertices.size();
+    clipVertices.resize(numVertices);
+    worldNormals.resize(numVertices);
+    worldVertices.resize(numVertices);
+
+    // Transform all vertices of the model to clip space and world space
+    for (size_t i = 0; i < numVertices; ++i) {
         clipVertices[i] = mvp * model.vertices[i];
+        worldVertices[i] = (model.transform * model.vertices[i]).xyz();
+    }
+    // Transform all normals of the model to world space
+    for (size_t i = 0; i < model.normals.size(); ++i)
+        worldNormals[i] = (normalMat * model.normals[i]).xyz();
 
     for (const auto& mesh : model.meshes) {
         for (const auto& subMesh : mesh.subMeshes) {
             for (size_t i = 0; i < subMesh.indexCount; i += 3) {
-                Color color{
-                    static_cast<uint8_t>(i % 256), static_cast<uint8_t>((i + 80) % 256), static_cast<uint8_t>((i + 160) % 256)};
-
-                const vec4& c1 = clipVertices[mesh.indices[subMesh.indexOffset + i].vertexIndex];
-                const vec4& c2 = clipVertices[mesh.indices[subMesh.indexOffset + i + 1].vertexIndex];
-                const vec4& c3 = clipVertices[mesh.indices[subMesh.indexOffset + i + 2].vertexIndex];
-
-                if (c1.w <= 0 || c2.w <= 0 || c3.w <= 0) continue;    // 简化近平面处理
-                const NdcTriangle t{c1 / c1.w, c2 / c2.w, c3 / c3.w}; // NDC
-                rasterize3D(frame, t, color, zBuffer);
+                auto t = getClipTriangle(model, mesh, subMesh, i);
+                auto& [c1, c2, c3] = t.c;
+                if (c1.clipVert.w <= 0 || c2.clipVert.w <= 0 || c3.clipVert.w <= 0) continue; // 简化近平面处理
+                rasterize3D(frame, zBuffer, t, model.materials[subMesh.materialIndex]);
             }
         }
     }
