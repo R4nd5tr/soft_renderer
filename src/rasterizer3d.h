@@ -30,7 +30,7 @@ struct NdcTriangle {
 };
 
 struct Renderer {
-    std::vector<vec4> transformedVertices;
+    std::vector<vec4> clipVertices;
     ZBuffer zBuffer;
 
     void render3DModel(const Model& model, Frame& frame, const mat<4, 4>& viewProj);

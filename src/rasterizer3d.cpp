@@ -97,11 +97,11 @@ void rasterize3D(Frame& frame, const NdcTriangle& ndct, const Color& color, ZBuf
 void Renderer::render3DModel(const Model& model, Frame& frame, const mat<4, 4>& viewProj) {
     mat<4, 4> mvp = viewProj * model.transform;
     const size_t numVertices = model.vertices.size();
-    if (transformedVertices.size() < numVertices) transformedVertices.resize(numVertices);
+    if (clipVertices.size() < numVertices) clipVertices.resize(numVertices);
 
     // Transform all vertices of the model to clip space
     for (size_t i = 0; i < numVertices; ++i)
-        transformedVertices[i] = mvp * model.vertices[i];
+        clipVertices[i] = mvp * model.vertices[i];
 
     for (const auto& mesh : model.meshes) {
         for (const auto& subMesh : mesh.subMeshes) {
@@ -109,9 +109,9 @@ void Renderer::render3DModel(const Model& model, Frame& frame, const mat<4, 4>& 
                 Color color{
                     static_cast<uint8_t>(i % 256), static_cast<uint8_t>((i + 80) % 256), static_cast<uint8_t>((i + 160) % 256)};
 
-                const vec4& c1 = transformedVertices[mesh.indices[subMesh.indexOffset + i].vertexIndex];
-                const vec4& c2 = transformedVertices[mesh.indices[subMesh.indexOffset + i + 1].vertexIndex];
-                const vec4& c3 = transformedVertices[mesh.indices[subMesh.indexOffset + i + 2].vertexIndex];
+                const vec4& c1 = clipVertices[mesh.indices[subMesh.indexOffset + i].vertexIndex];
+                const vec4& c2 = clipVertices[mesh.indices[subMesh.indexOffset + i + 1].vertexIndex];
+                const vec4& c3 = clipVertices[mesh.indices[subMesh.indexOffset + i + 2].vertexIndex];
 
                 if (c1.w <= 0 || c2.w <= 0 || c3.w <= 0) continue;    // 简化近平面处理
                 const NdcTriangle t{c1 / c1.w, c2 / c2.w, c3 / c3.w}; // NDC
@@ -126,7 +126,6 @@ void Renderer::renderScene(const Scene& scene, Frame& frame) {
     zBuffer.resize(frame.width, frame.height);
     zBuffer.clear();
 
-    for (const auto& model : scene.models) {
+    for (const auto& model : scene.models)
         render3DModel(model, frame, viewProj);
-    }
 }
