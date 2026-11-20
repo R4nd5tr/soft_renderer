@@ -1,23 +1,9 @@
 #include "app.h"
 #define RGFWDEF
 #include "RGFW.h"
+#include "icon.h"
 #include <chrono>
 #include <thread>
-
-static u8 iconRGB[2 * 2 * 4] = {
-    0x39,
-    0xC5,
-    0xBB,
-    0x39,
-    0xC5,
-    0xBB,
-    0x39,
-    0xC5,
-    0xBB,
-    0x39,
-    0xC5,
-    0xBB,
-};
 
 App::~App() {
     if (surface) RGFW_surface_free(surface);
@@ -27,7 +13,7 @@ App::~App() {
 bool App::init() {
     win = RGFW_createWindow("Software Renderer", 0, 0, windowWidth, windowHeight, RGFW_windowCenter | RGFW_windowNoResize);
     if (!win) return false;
-    RGFW_window_setIcon(win, iconRGB, 2, 2, RGFW_formatRGB8);
+    RGFW_window_setIcon(win, (uint8_t*)(icon), icon_width, icon_height, RGFW_formatRGBA8);
     RGFW_window_setExitKey(win, RGFW_escape);
 
     clearFrame(renderFrame);
