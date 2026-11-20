@@ -6,6 +6,7 @@ Texture loadTexture(const std::filesystem::path& path) {
     int width, height, channels;
     Texture texture;
 
+    stbi_set_flip_vertically_on_load(1);
     unsigned char* data = stbi_load(path.string().c_str(), &width, &height, &channels, 0);
     if (!data) return texture; // failed to load image
 

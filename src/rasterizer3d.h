@@ -3,6 +3,7 @@
 #include "math_utils.h"
 #include "model.h"
 #include "scene.h"
+#include "shader.h"
 #include <cstdint>
 #include <vector>
 
@@ -45,6 +46,17 @@ struct Renderer {
     ZBuffer zBuffer;
 
     Primitive getPrimitive(const Model& model, const Mesh& mesh, const SubMesh& sub, size_t triIndex) const;
-    void render3DModel(const Model& model, Frame& frame, const mat<4, 4>& viewProj);
+    void render3DModel(const Model& model, Frame& frame, const mat<4, 4>& viewProj, const ShadingEnv& env);
     void renderScene(const Scene& scene, Frame& frame);
 };
+
+// // rasterizer3d.h
+// template <typename ShaderT>
+// void rasterize3D(Frame&, ZBuffer&, const Primitive&, const ShaderT& shader);
+
+// // render3DModel: 每个 submesh 一次 switch，而不是每像素
+// switch (shaderKind) {
+// case ShaderKind::Unlit: rasterize3D(frame, zbuf, tri, UnlitShader{material, env}); break;
+// case ShaderKind::Phong: rasterize3D(frame, zbuf, tri, PhongShader{material, env}); break;
+// case ShaderKind::Normal: rasterize3D(frame, zbuf, tri, NormalShader{material, env}); break;
+// }

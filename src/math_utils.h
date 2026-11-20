@@ -237,12 +237,14 @@ struct RGB {
     uint8_t r;
     uint8_t g;
     uint8_t b;
+    vec3 toFloat() const { return {r / 255.0f, g / 255.0f, b / 255.0f}; }
 };
 struct RGBA {
     uint8_t r;
     uint8_t g;
     uint8_t b;
     uint8_t a;
+    RGB rgb() const { return {r, g, b}; }
 };
 
 constexpr RGB WHITE_RGB = {255, 255, 255};

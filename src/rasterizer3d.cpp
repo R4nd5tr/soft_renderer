@@ -36,7 +36,7 @@ ScreenTriangle projectNdcToScreen(const NdcTriangle& t, int width, int height) {
             {toSubPixel(t.v2.x, width), toSubPixel(t.v2.y, height)},
             {toSubPixel(t.v3.x, width), toSubPixel(t.v3.y, height)}};
 }
-void rasterize3D(Frame& frame, ZBuffer& zBuffer, const Primitive& tri, const Material& material) {
+void rasterize3D(Frame& frame, ZBuffer& zBuffer, const Primitive& tri, const Shader& shader) {
     const auto& [v1, v2, v3] = tri.v;
     NdcTriangle ndct = clipToNdc(tri);
     ScreenTriangle t = projectNdcToScreen(ndct, frame.width, frame.height);
@@ -71,24 +71,37 @@ void rasterize3D(Frame& frame, ZBuffer& zBuffer, const Primitive& tri, const Mat
 
     // iterate over the bounding box of the triangle per pixel
     for (int y = minY; y <= maxY; y++) {
-        Fixed e3 = e3Row, e1 = e1Row, e2 = e2Row; // e = signedArea2 of the sub-triangle, w1 + w2 + w3 = totalArea2
+        Fixed e1 = e1Row, e2 = e2Row, e3 = e3Row; // e = signedArea2 of the sub-triangle, w1 + w2 + w3 = totalArea2
         for (int x = minX; x <= maxX; x++) {
             bool inside = e3 >= 0 && e1 >= 0 && e2 >= 0;
             bool topLeft = (e1 != 0 || isTopLeftEdge(t.p2, t.p3)) && (e2 != 0 || isTopLeftEdge(t.p3, t.p1)) &&
                            (e3 != 0 || isTopLeftEdge(t.p1, t.p2));
             if (inside && topLeft) {
-                vec3 barycentric{
-                    static_cast<float>(e1) * invArea2, static_cast<float>(e2) * invArea2, static_cast<float>(e3) * invArea2};
-                const auto& [b1, b2, b3] = barycentric; // Normalized barycentric coordinates, b1 + b2 + b3 == 1
+                const float b1 = static_cast<float>(e1) * invArea2, b2 = static_cast<float>(e2) * invArea2,
+                            b3 = static_cast<float>(e3) * invArea2; // Normalized barycentric coordinates, b1 + b2 + b3 == 1
+
                 const float depth = ndct.v1.z * b1 + ndct.v2.z * b2 + ndct.v3.z * b3;
                 float& z = zBuffer.data[y * frame.width + x];
                 if (depth <= z) {
-                    z = depth;
-                    drawPixel(frame,
-                              {x, y},
-                              {static_cast<uint8_t>(b1 * 255.0f),
-                               static_cast<uint8_t>(b2 * 255.0f),
-                               static_cast<uint8_t>(b3 * 255.0f)});
+                    const float p1 = b1 * invClipW1, p2 = b2 * invClipW2,
+                                p3 = b3 * invClipW3;          // Perspective-correct barycentric coordinates
+                    const float invP = 1.0f / (p1 + p2 + p3); // for normalization
+
+                    Fragment f;
+                    f.uv = (v1.uv * p1 + v2.uv * p2 + v3.uv * p3) * invP;
+                    f.worldPos = (v1.worldPos * p1 + v2.worldPos * p2 + v3.worldPos * p3) * invP;
+                    f.worldNormal = normalized((v1.worldNormal * p1 + v2.worldNormal * p2 + v3.worldNormal * p3) * invP);
+
+                    Color color;
+                    if (shader.shade(f, color)) {
+                        z = depth;
+                        drawPixel(frame, {x, y}, color);
+                    }
+                    // drawPixel(frame,
+                    //           {x, y},
+                    //           {static_cast<uint8_t>(b1 * 255.0f),
+                    //            static_cast<uint8_t>(b2 * 255.0f),
+                    //            static_cast<uint8_t>(b3 * 255.0f)});
                 }
             }
             e1 += deltaE1Col;
@@ -111,7 +124,7 @@ Primitive Renderer::getPrimitive(const Model& model, const Mesh& mesh, const Sub
     }
     return tri;
 }
-void Renderer::render3DModel(const Model& model, Frame& frame, const mat<4, 4>& viewProj) {
+void Renderer::render3DModel(const Model& model, Frame& frame, const mat<4, 4>& viewProj, const ShadingEnv& env) {
     mat<4, 4> mvp = viewProj * model.transform;
     mat<4, 4> normalMat = model.transform.invert_transpose();
 
@@ -129,13 +142,19 @@ void Renderer::render3DModel(const Model& model, Frame& frame, const mat<4, 4>& 
     for (size_t i = 0; i < model.normals.size(); ++i)
         worldNormals[i] = (normalMat * model.normals[i]).xyz();
 
-    for (const auto& mesh : model.meshes) {
-        for (const auto& subMesh : mesh.subMeshes) {
-            for (size_t i = 0; i < subMesh.indexCount; i += 3) {
+    // model
+    for (const auto& mesh : model.meshes) {          // mesh
+        for (const auto& subMesh : mesh.subMeshes) { // material submesh
+            const Material& material = model.materials[subMesh.materialIndex];
+            ShaderKind shaderKind = ShaderKind::Unlit;
+            Shader shader{material, env, getFragmentShader(shaderKind)};
+
+            for (size_t i = 0; i < subMesh.indexCount; i += 3) { // triangle
                 const auto t = getPrimitive(model, mesh, subMesh, i);
                 auto& [v1, v2, v3] = t.v;
                 if (v1.clipVert.w <= 0 || v2.clipVert.w <= 0 || v3.clipVert.w <= 0) continue; // 简化近平面处理
-                rasterize3D(frame, zBuffer, t, model.materials[subMesh.materialIndex]);
+
+                rasterize3D(frame, zBuffer, t, shader);
             }
         }
     }
@@ -146,6 +165,9 @@ void Renderer::renderScene(const Scene& scene, Frame& frame) {
     zBuffer.resize(frame.width, frame.height);
     zBuffer.clear();
 
+    ShadingEnv env = {
+        scene.camera.position, &scene.lights, scene.environmentLight.color.toFloat() * scene.environmentLight.intensity};
+
     for (const auto& model : scene.models)
-        render3DModel(model, frame, viewProj);
+        render3DModel(model, frame, viewProj, env);
 }

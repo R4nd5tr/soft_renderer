@@ -4,8 +4,8 @@
 #include <algorithm>
 constexpr float CAMERA_MIN_DISTANCE = 0.1f;
 struct Camera {
-    vec3 position = {0, 3, 3}; // -左+右，-下+上，-前+后
-    vec3 target = {0, 0, 0};
+    vec3 position = {0, 1, 3}; // -左+右，-下+上，-前+后
+    vec3 target = {0, 1, 0};
     vec3 up = {0, 1, 0};
     float fov = 90.0f;
     float aspect = 1.0f;
