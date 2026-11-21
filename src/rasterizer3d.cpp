@@ -41,16 +41,16 @@ void rasterize3D(Frame& frame, ZBuffer& zBuffer, const Primitive& tri, const Sha
     NdcTriangle ndct = clipToNdc(tri);
     ScreenTriangle t = projectNdcToScreen(ndct, frame.width, frame.height);
 
-    // bounding box of the triangle, clamped to the frame boundaries
-    int minX = std::max(0, FixedToPixel(std::min({t.p1.x, t.p2.x, t.p3.x})));
-    int maxX = std::min(frame.width - 1, FixedToPixel(std::max({t.p1.x, t.p2.x, t.p3.x})));
-    int minY = std::max(0, FixedToPixel(std::min({t.p1.y, t.p2.y, t.p3.y})));
-    int maxY = std::min(frame.height - 1, FixedToPixel(std::max({t.p1.y, t.p2.y, t.p3.y})));
-    if (minX > maxX || minY > maxY) return; // skip drawing if the triangle is entirely outside the frame
-
     Fixed totalArea2 = signedArea2(t);
     if (totalArea2 < MIN_AREA2) return; // backface culling and degenerate triangle check
     const float invArea2 = 1.0f / static_cast<float>(totalArea2);
+
+    // bounding box of the triangle, clamped to the frame boundaries
+    int minX = std::max(0, FixedToPixel(std::min(t.p1.x, std::min(t.p2.x, t.p3.x))));
+    int maxX = std::min(frame.width - 1, FixedToPixel(std::max(t.p1.x, std::max(t.p2.x, t.p3.x))));
+    int minY = std::max(0, FixedToPixel(std::min(t.p1.y, std::min(t.p2.y, t.p3.y))));
+    int maxY = std::min(frame.height - 1, FixedToPixel(std::max(t.p1.y, std::max(t.p2.y, t.p3.y))));
+    if (minX > maxX || minY > maxY) return; // skip drawing if the triangle is entirely outside the frame
 
     // precompute per-pixel deltas for efficient barycentric coordinate updates.
     Fixed deltaE1Col = (t.p2.y - t.p3.y) * SUBPIXEL_SCALE;
@@ -65,18 +65,22 @@ void rasterize3D(Frame& frame, ZBuffer& zBuffer, const Primitive& tri, const Sha
     Fixed e2Row = signedArea2({p0, t.p3, t.p1});
     Fixed e3Row = signedArea2({p0, t.p1, t.p2});
 
+    // precompute perspective-correct barycentric coordinates
     const float invClipW1 = 1.0f / v1.clipVert.w;
     const float invClipW2 = 1.0f / v2.clipVert.w;
     const float invClipW3 = 1.0f / v3.clipVert.w;
 
+    // precompute top-left rule
+    bool isTopLeft1 = isTopLeftEdge(t.p2, t.p3);
+    bool isTopLeft2 = isTopLeftEdge(t.p3, t.p1);
+    bool isTopLeft3 = isTopLeftEdge(t.p1, t.p2);
+
     // iterate over the bounding box of the triangle per pixel
     for (int y = minY; y <= maxY; y++) {
-        Fixed e1 = e1Row, e2 = e2Row, e3 = e3Row; // e = signedArea2 of the sub-triangle, w1 + w2 + w3 = totalArea2
+        Fixed e1 = e1Row, e2 = e2Row, e3 = e3Row; // e = signedArea2 of the sub-triangle, e1 + e2 + e3 = totalArea2
         for (int x = minX; x <= maxX; x++) {
-            bool inside = e3 >= 0 && e1 >= 0 && e2 >= 0;
-            bool topLeft = (e1 != 0 || isTopLeftEdge(t.p2, t.p3)) && (e2 != 0 || isTopLeftEdge(t.p3, t.p1)) &&
-                           (e3 != 0 || isTopLeftEdge(t.p1, t.p2));
-            if (inside && topLeft) {
+            if (e3 >= 0 && e1 >= 0 && e2 >= 0 && // check if the pixel is inside the triangle
+                (e1 != 0 || isTopLeft1) && (e2 != 0 || isTopLeft2) && (e3 != 0 || isTopLeft3)) { // top-left rule
                 const float b1 = static_cast<float>(e1) * invArea2, b2 = static_cast<float>(e2) * invArea2,
                             b3 = static_cast<float>(e3) * invArea2; // Normalized barycentric coordinates, b1 + b2 + b3 == 1
 
