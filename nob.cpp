@@ -38,8 +38,9 @@ namespace fs = std::filesystem;
     #define FLAGS "/std:c++17", "/W4", "/EHsc", "/Z7", "/DEBUG", "/Od", "/DNOMINMAX"
     #define HEADER "/Isrc", "/external:Iexternal", "/external:W0"
 #else
-    #define FLAGS \
-        "-std=c++17", "-Wall", "-Wextra", "-Wno-unused-function", "-Wno-missing-field-initializers", "-g", "-O0", "-DNOMINMAX"
+    #define FLAGS                                                                                                             \
+        "-std=c++17", "-Wall", "-Wextra", "-Wno-unused-function", "-Wno-unused-parameter", "-Wno-missing-field-initializers", \
+            "-g", "-O0", "-DNOMINMAX"
     #define HEADER "-Isrc", "-Iexternal"
 #endif
 

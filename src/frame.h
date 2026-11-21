@@ -36,15 +36,18 @@ inline void clearFrame(Frame& frame) {
     std::fill(frame.data.begin(), frame.data.end(), Color{0, 0, 0});
 }
 
+inline void drawPixelUnchecked(Frame& frame, const PixelCoord& p, const Color& c) {
+#ifdef BOTTOM_LEFT_ORIGIN
+    frame.data[(frame.height - 1 - p.y) * frame.width + p.x] = c;
+#else
+    frame.data[p.y * frame.width + p.x] = c;
+#endif
+}
 inline void drawPixel(Frame& frame, const PixelCoord& p, const Color& color) {
     if (frame.data.empty()) return;
     if (p.x >= frame.width || p.x < 0 || p.y >= frame.height || p.y < 0) return;
 
-#ifdef BOTTOM_LEFT_ORIGIN
-    frame.data[(frame.height - 1 - p.y) * frame.width + p.x] = color;
-#else
-    frame.data[p.y * frame.width + p.x] = color;
-#endif
+    drawPixelUnchecked(frame, p, color);
 }
 
 bool writeFrameToImage(const Frame& frame, const std::string& filename);

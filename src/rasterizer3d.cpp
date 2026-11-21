@@ -36,7 +36,9 @@ ScreenTriangle projectNdcToScreen(const NdcTriangle& t, int width, int height) {
             {toSubPixel(t.v2.x, width), toSubPixel(t.v2.y, height)},
             {toSubPixel(t.v3.x, width), toSubPixel(t.v3.y, height)}};
 }
-void rasterize3D(Frame& frame, ZBuffer& zBuffer, const Primitive& tri, const Shader& shader) {
+
+template <FragmentShader shader>
+void rasterize3D(Frame& frame, ZBuffer& zBuffer, const Primitive& tri, const ShaderContext& ctx) {
     const auto& [v1, v2, v3] = tri.v;
     NdcTriangle ndct = clipToNdc(tri);
     ScreenTriangle t = projectNdcToScreen(ndct, frame.width, frame.height);
@@ -97,15 +99,10 @@ void rasterize3D(Frame& frame, ZBuffer& zBuffer, const Primitive& tri, const Sha
                     f.worldNormal = normalized((v1.worldNormal * p1 + v2.worldNormal * p2 + v3.worldNormal * p3) * invP);
 
                     Color color;
-                    if (shader.shade(f, color)) {
+                    if (shader(ctx, f, color)) {
                         z = depth;
-                        drawPixel(frame, {x, y}, color);
+                        drawPixelUnchecked(frame, {x, y}, color);
                     }
-                    // drawPixel(frame,
-                    //           {x, y},
-                    //           {static_cast<uint8_t>(b1 * 255.0f),
-                    //            static_cast<uint8_t>(b2 * 255.0f),
-                    //            static_cast<uint8_t>(b3 * 255.0f)});
                 }
             }
             e1 += deltaE1Col;
@@ -117,6 +114,7 @@ void rasterize3D(Frame& frame, ZBuffer& zBuffer, const Primitive& tri, const Sha
         e3Row += deltaE3Row;
     }
 }
+
 Primitive Renderer::getPrimitive(const Model& model, const Mesh& mesh, const SubMesh& subMesh, size_t triIndex) const {
     Primitive tri;
     for (int i = 0; i < 3; ++i) {
@@ -128,6 +126,22 @@ Primitive Renderer::getPrimitive(const Model& model, const Mesh& mesh, const Sub
     }
     return tri;
 }
+template <FragmentShader shader>
+static void renderSubMesh(const Renderer& renderer,
+                          const Model& model,
+                          const Mesh& mesh,
+                          const SubMesh& subMesh,
+                          Frame& frame,
+                          ZBuffer& zBuffer,
+                          const ShaderContext& ctx) {
+    for (size_t i = 0; i < subMesh.indexCount; i += 3) {
+        const auto t = renderer.getPrimitive(model, mesh, subMesh, i);
+        const auto& [v1, v2, v3] = t.v;
+        if (v1.clipVert.w <= 0 || v2.clipVert.w <= 0 || v3.clipVert.w <= 0) continue;
+        rasterize3D<shader>(frame, zBuffer, t, ctx);
+    }
+}
+
 void Renderer::render3DModel(const Model& model, Frame& frame, const mat<4, 4>& viewProj, const ShadingEnv& env) {
     mat<4, 4> mvp = viewProj * model.transform;
     mat<4, 4> normalMat = model.transform.invert_transpose();
@@ -151,14 +165,14 @@ void Renderer::render3DModel(const Model& model, Frame& frame, const mat<4, 4>& 
         for (const auto& subMesh : mesh.subMeshes) { // material submesh
             const Material& material = model.materials[subMesh.materialIndex];
             ShaderKind shaderKind = ShaderKind::Unlit;
-            Shader shader{material, env, getFragmentShader(shaderKind)};
+            ShaderContext ctx{material, env};
+            switch (shaderKind) {
+            case ShaderKind::Unlit:
+                renderSubMesh<unlitShader>(*this, model, mesh, subMesh, frame, zBuffer, ctx);
+                break;
 
-            for (size_t i = 0; i < subMesh.indexCount; i += 3) { // triangle
-                const auto t = getPrimitive(model, mesh, subMesh, i);
-                auto& [v1, v2, v3] = t.v;
-                if (v1.clipVert.w <= 0 || v2.clipVert.w <= 0 || v3.clipVert.w <= 0) continue; // 简化近平面处理
-
-                rasterize3D(frame, zBuffer, t, shader);
+            default:
+                break;
             }
         }
     }
