@@ -35,14 +35,15 @@ inline bool unlitShader(const ShaderContext& ctx, const Fragment& f, Color& out)
     }
     return true;
 }
-inline bool phongShader(const ShaderContext& ctx, const Fragment& f, Color& out) {
-
-    return true;
-}
 inline bool normalShader(const ShaderContext& ctx, const Fragment& f, Color& out) {
     vec3 normal = normalized(f.worldNormal);
     out = {static_cast<uint8_t>((normal.x * 0.5f + 0.5f) * 255.0f),
            static_cast<uint8_t>((normal.y * 0.5f + 0.5f) * 255.0f),
            static_cast<uint8_t>((normal.z * 0.5f + 0.5f) * 255.0f)};
+    return true;
+}
+
+inline bool phongShader(const ShaderContext& ctx, const Fragment& f, Color& out) {
+
     return true;
 }

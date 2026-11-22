@@ -37,7 +37,7 @@ ScreenTriangle projectNdcToScreen(const NdcTriangle& t, int width, int height) {
             {toSubPixel(t.v3.x, width), toSubPixel(t.v3.y, height)}};
 }
 
-template <FragmentShader shader>
+template <FragmentShader shader> // compile-time shader selection
 void rasterize3D(Frame& frame, ZBuffer& zBuffer, const Primitive& tri, const ShaderContext& ctx) {
     const auto& [v1, v2, v3] = tri.v;
     NdcTriangle ndct = clipToNdc(tri);
@@ -115,6 +115,90 @@ void rasterize3D(Frame& frame, ZBuffer& zBuffer, const Primitive& tri, const Sha
     }
 }
 
+VertexOut lerpVertex(const VertexOut& v1, const VertexOut& v2, float t) {
+    VertexOut v;
+    v.clipVert = lerp(v1.clipVert, v2.clipVert, t);
+    v.worldPos = lerp(v1.worldPos, v2.worldPos, t);
+    v.worldNormal = lerp(v1.worldNormal, v2.worldNormal, t);
+    v.uv = lerp(v1.uv, v2.uv, t);
+    return v;
+}
+// 在NDC空间中，所有顶点都变换到了[-1, 1]^3立方体中
+// 裁剪空间(x, y, z, w) -> NDC空间(x/w, y/w, z/w)
+// 也就是 -1 <= x/w <= 1, -1 <= y/w <= 1, -1 <= z/w <= 1
+// 不等式两边同时乘以w，得到 -w <= x <= w, -w <= y <= w, -w <= z <= w
+// 也就是 x >= -w, y >= -w, z >= -w, x <= w, y <= w, z <= w
+// 也就是 z + w, -z + w, -x + w, x + w, -y + w, y + w >= 0
+// z + w刚好可以表示为(x, y, z, w) * (0, 0, 1, 1)
+// 于是平面就表示为下面CLIP_PLANES[]中的形式
+// 计算下面的平面表示和顶点的点积，如果点积大于0，则在平面内，否则在平面外
+// 这样就可以确认顶点是否在平面内
+// 用平面表示裁剪空间的六个面，然后用Sutherland–Hodgman算法裁剪
+constexpr vec4 CLIP_PLANES[] = {
+    {0, 0, 1, 1},  // near:    z + w >= 0
+    {0, 0, -1, 1}, // far:    -z + w >= 0
+    {1, 0, 0, 1},  // left:    x + w >= 0
+    {-1, 0, 0, 1}, // right:  -x + w >= 0
+    {0, 1, 0, 1},  // bottom:  y + w >= 0
+    {0, -1, 0, 1}, // top:    -y + w >= 0
+};
+constexpr int MAX_CLIP_VERTS = 12;
+// 用单个平面对凸多边形裁剪（Sutherland–Hodgman 一步）
+int clipPolygonAgainstPlane(const VertexOut* in, int inCount, const vec4& plane, VertexOut* out) {
+    float distance[MAX_CLIP_VERTS];
+    bool allIn = true, allOut = true;
+    for (int i = 0; i < inCount; ++i) {
+        distance[i] = plane * in[i].clipVert;    // 计算每个顶点到平面的距离（点积）
+        if (distance[i] >= 0.0f) allOut = false; // 如果点积大于0，则在平面内，否则在平面外
+        else
+            allIn = false;
+    }
+
+    if (allIn) { // 快路径：整个在内侧，跳过裁剪
+        std::copy(in, in + inCount, out);
+        return inCount;
+    }
+    if (allOut) return 0; // 快路径：整个在外侧，直接剔除
+
+    int outCount = 0;
+    for (int i = 0; i < inCount; ++i) {
+        const int j = (i + 1) % inCount;
+        const VertexOut& current = in[i];
+        const VertexOut& next = in[j];
+        const bool currentInPlane = distance[i] >= 0.0f;
+        const bool nextInPlane = distance[j] >= 0.0f;
+
+        if (currentInPlane) {
+            out[outCount] = current;
+            outCount += 1;
+        }
+        if (currentInPlane != nextInPlane) {
+            const float t = distance[i] / (distance[i] - distance[j]); // 交点参数
+            out[outCount] = lerpVertex(current, next, t);
+            outCount += 1;
+        }
+    }
+    return outCount;
+}
+struct ClipBuffers {
+    VertexOut poly[MAX_CLIP_VERTS]; // 裁剪输出
+    VertexOut buf0[MAX_CLIP_VERTS]; // 双缓冲
+    VertexOut buf1[MAX_CLIP_VERTS];
+};
+int clipTriangle(const VertexOut in[3], ClipBuffers& buf) {
+    std::copy(in, in + 3, buf.buf0);
+    VertexOut* src = buf.buf0;
+    VertexOut* dst = buf.buf1;
+    int n = 3;
+    for (const auto& p : CLIP_PLANES) {
+        n = clipPolygonAgainstPlane(src, n, p, dst);
+        if (n < 3) return 0;
+        std::swap(src, dst);
+    }
+    std::copy(src, src + n, buf.poly);
+    return n;
+}
+
 Primitive Renderer::getPrimitive(const Model& model, const Mesh& mesh, const SubMesh& subMesh, size_t triIndex) const {
     Primitive tri;
     for (int i = 0; i < 3; ++i) {
@@ -134,11 +218,16 @@ static void renderSubMesh(const Renderer& renderer,
                           Frame& frame,
                           ZBuffer& zBuffer,
                           const ShaderContext& ctx) {
+    ClipBuffers buf;
     for (size_t i = 0; i < subMesh.indexCount; i += 3) {
         const auto t = renderer.getPrimitive(model, mesh, subMesh, i);
-        const auto& [v1, v2, v3] = t.v;
-        if (v1.clipVert.w <= 0 || v2.clipVert.w <= 0 || v3.clipVert.w <= 0) continue;
-        rasterize3D<shader>(frame, zBuffer, t, ctx);
+        const int n = clipTriangle(t.v, buf);
+        if (n < 3) continue;
+
+        for (int k = 1; k + 1 < n; ++k) {
+            const Primitive p{buf.poly[0], buf.poly[k], buf.poly[k + 1]};
+            rasterize3D<shader>(frame, zBuffer, p, ctx);
+        }
     }
 }
 
@@ -166,7 +255,7 @@ void Renderer::render3DModel(const Model& model, Frame& frame, const mat<4, 4>& 
             const Material& material = model.materials[subMesh.materialIndex];
             ShaderKind shaderKind = ShaderKind::Unlit;
             ShaderContext ctx{material, env};
-            switch (shaderKind) {
+            switch (shaderKind) { // compile-time shader selection
             case ShaderKind::Unlit:
                 renderSubMesh<unlitShader>(*this, model, mesh, subMesh, frame, zBuffer, ctx);
                 break;

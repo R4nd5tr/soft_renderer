@@ -231,6 +231,10 @@ template <> struct dt<1> { // template specialization to stop the recursion
 };
 // ========================================
 
+template <typename T> T lerp(const T& a, const T& b, float t) {
+    return a * (1.0f - t) + b * t;
+}
+
 // color structures
 
 struct RGB {
