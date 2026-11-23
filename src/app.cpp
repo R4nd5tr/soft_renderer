@@ -83,6 +83,9 @@ Scene App::loadScene() {
     scene.camera.aspect = static_cast<float>(renderWidth) / renderHeight;
     // ============================================================
 
+    scene.addLight(Light{}); // 环境光
+    scene.shaderKind = ShaderKind::BlinnPhong;
+    scene.clearOption(ShaderOptions::NormalTexture);
     scene.addModel("obj/miku_plush/miku_plush.obj");
 
     return scene;

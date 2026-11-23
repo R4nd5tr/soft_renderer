@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <cstdint>
@@ -234,6 +235,31 @@ template <> struct dt<1> { // template specialization to stop the recursion
 template <typename T> T lerp(const T& a, const T& b, float t) {
     return a * (1.0f - t) + b * t;
 }
+template <int n> vec<n> clamp01(const vec<n>& v) {
+    vec<n> ret;
+    for (int i = 0; i < n; i++) {
+        ret[i] = std::clamp(v[i], 0.0f, 1.0f);
+    }
+    return ret;
+}
+template <int n> vec<n> operator-(const vec<n>& v) {
+    vec<n> ret;
+    for (int i = n; i--; ret[i] = -v[i])
+        ;
+    return ret;
+}
+// 逐分量乘法（Hadamard product）
+template <int n> vec<n> hadamard(const vec<n>& lhs, const vec<n>& rhs) {
+    vec<n> ret;
+    for (int i = n; i--; ret[i] = lhs[i] * rhs[i])
+        ;
+    return ret;
+}
+template <int n> vec<n>& operator+=(vec<n>& lhs, const vec<n>& rhs) {
+    for (int i = 0; i < n; ++i)
+        lhs[i] += rhs[i];
+    return lhs;
+}
 
 // color structures
 
@@ -259,3 +285,8 @@ constexpr RGB BLUE_RGB = {0, 0, 255};
 constexpr RGB YELLOW_RGB = {255, 255, 0};
 constexpr RGB CYAN_RGB = {0, 255, 255};
 constexpr RGB MAGENTA_RGB = {255, 0, 255};
+
+inline RGB vec3toRGB(const vec3& c) {
+    const vec3 v = clamp01(c);
+    return {static_cast<uint8_t>(v.x * 255.0f), static_cast<uint8_t>(v.y * 255.0f), static_cast<uint8_t>(v.z * 255.0f)};
+}

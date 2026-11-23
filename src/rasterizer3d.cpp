@@ -77,6 +77,8 @@ void rasterize3D(Frame& frame, ZBuffer& zBuffer, const Primitive& tri, const Sha
     bool isTopLeft2 = isTopLeftEdge(t.p3, t.p1);
     bool isTopLeft3 = isTopLeftEdge(t.p1, t.p2);
 
+    vec3 faceNormal = normalized(cross(v2.worldPos - v1.worldPos, v3.worldPos - v1.worldPos));
+
     // iterate over the bounding box of the triangle per pixel
     for (int y = minY; y <= maxY; y++) {
         Fixed e1 = e1Row, e2 = e2Row, e3 = e3Row; // e = signedArea2 of the sub-triangle, e1 + e2 + e3 = totalArea2
@@ -97,6 +99,7 @@ void rasterize3D(Frame& frame, ZBuffer& zBuffer, const Primitive& tri, const Sha
                     f.uv = (v1.uv * p1 + v2.uv * p2 + v3.uv * p3) * invP;
                     f.worldPos = (v1.worldPos * p1 + v2.worldPos * p2 + v3.worldPos * p3) * invP;
                     f.worldNormal = normalized((v1.worldNormal * p1 + v2.worldNormal * p2 + v3.worldNormal * p3) * invP);
+                    f.faceNormal = faceNormal;
 
                     Color color;
                     if (shader(ctx, f, color)) {
@@ -253,13 +256,20 @@ void Renderer::render3DModel(const Model& model, Frame& frame, const mat<4, 4>& 
     for (const auto& mesh : model.meshes) {          // mesh
         for (const auto& subMesh : mesh.subMeshes) { // material submesh
             const Material& material = model.materials[subMesh.materialIndex];
-            ShaderKind shaderKind = ShaderKind::Unlit;
             ShaderContext ctx{material, env};
-            switch (shaderKind) { // compile-time shader selection
+            switch (env.shaderKind) { // compile-time shader selection
             case ShaderKind::Unlit:
                 renderSubMesh<unlitShader>(*this, model, mesh, subMesh, frame, zBuffer, ctx);
                 break;
-
+            case ShaderKind::Normal:
+                renderSubMesh<normalShader>(*this, model, mesh, subMesh, frame, zBuffer, ctx);
+                break;
+            case ShaderKind::FlatBlinnPhong:
+                renderSubMesh<flatBlinnPhongShader>(*this, model, mesh, subMesh, frame, zBuffer, ctx);
+                break;
+            case ShaderKind::BlinnPhong:
+                renderSubMesh<blinnPhongShader>(*this, model, mesh, subMesh, frame, zBuffer, ctx);
+                break;
             default:
                 break;
             }
@@ -272,8 +282,11 @@ void Renderer::renderScene(const Scene& scene, Frame& frame) {
     zBuffer.resize(frame.width, frame.height);
     zBuffer.clear();
 
-    ShadingEnv env = {
-        scene.camera.position, &scene.lights, scene.environmentLight.color.toFloat() * scene.environmentLight.intensity};
+    ShadingEnv env = {scene.camera.position,
+                      scene.lights,
+                      scene.ambientLight.color.toFloat() * scene.ambientLight.intensity,
+                      scene.shaderKind,
+                      scene.options};
 
     for (const auto& model : scene.models)
         render3DModel(model, frame, viewProj, env);

@@ -3,7 +3,6 @@
 #include "math_utils.h"
 #include "model.h"
 #include "scene.h"
-#include "shader.h"
 #include <cstdint>
 #include <vector>
 

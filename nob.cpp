@@ -36,11 +36,15 @@ namespace fs = std::filesystem;
 // 编译选项
 #if defined(_MSC_VER) && !defined(__clang__)
     #define FLAGS "/std:c++17", "/W4", "/EHsc", "/Z7", "/DEBUG", "/Od", "/DNOMINMAX"
+    #define FLAGS_OPTIMIZED "/std:c++17", "/W4", "/EHsc", "/Z7", "/DNOMINMAX"
     #define HEADER "/Isrc", "/external:Iexternal", "/external:W0"
 #else
     #define FLAGS                                                                                                             \
         "-std=c++17", "-Wall", "-Wextra", "-Wno-unused-function", "-Wno-unused-parameter", "-Wno-missing-field-initializers", \
             "-g", "-O0", "-DNOMINMAX"
+    #define FLAGS_OPTIMIZED                                                                                                   \
+        "-std=c++17", "-Wall", "-Wextra", "-Wno-unused-function", "-Wno-unused-parameter", "-Wno-missing-field-initializers", \
+            "-DNOMINMAX", "-O3"
     #define HEADER "-Isrc", "-Iexternal"
 #endif
 
@@ -113,6 +117,10 @@ std::vector<std::string> collect_header_files(const fs::path& directory) {
 int main(int argc, char** argv) {
     NOB_GO_REBUILD_URSELF(argc, argv);
 
+    bool optimize = false;
+    for (int i = 1; i < argc; ++i)
+        if (strcmp(argv[i], "-O") == 0) optimize = true;
+
     // 检查 src/ 和 external/ 目录是否存在
     if (!fs::exists("src")) {
         nob_log(NOB_ERROR, "src/ not found");
@@ -143,7 +151,9 @@ int main(int argc, char** argv) {
     headers.insert(headers.end(), external_headers.begin(), external_headers.end());
 
     // 创建 build/ 目录
-    if (!nob_mkdir_if_not_exists("build")) return 1;
+    const std::string buildDir = optimize ? "build/optimized/" : "build/debug/";
+    if (!nob_mkdir_if_not_exists("build/")) return 1;
+    if (!nob_mkdir_if_not_exists(buildDir.c_str())) return 1;
 
     Nob_Cmd cmd = {0};
     Nob_Procs procs = {0};
@@ -151,7 +161,7 @@ int main(int argc, char** argv) {
 
     for (const auto& source : sources) {
         // 生成对应的目标文件名
-        std::string obj = "build/" + fs::path(source).stem().string() + OBJ_EXT;
+        std::string obj = buildDir + fs::path(source).stem().string() + OBJ_EXT;
         objects.push_back(obj);
 
         // 检查是否需要重新编译
@@ -171,7 +181,11 @@ int main(int argc, char** argv) {
 
         // 编译源文件
         nob_log(NOB_INFO, "Compiling %s -> %s", source.c_str(), obj.c_str());
-        nob_cmd_append(&cmd, CC, FLAGS, HEADER, COMPILE_ONLY, source.c_str(), OBJ_OUT, obj.c_str());
+        if (optimize) {
+            nob_cmd_append(&cmd, CC, FLAGS_OPTIMIZED, HEADER, COMPILE_ONLY, source.c_str(), OBJ_OUT, obj.c_str());
+        } else {
+            nob_cmd_append(&cmd, CC, FLAGS, HEADER, COMPILE_ONLY, source.c_str(), OBJ_OUT, obj.c_str());
+        }
         if (!nob_cmd_run(&cmd, .async = &procs)) return 1; // 只登记进程，立即返回
     }
 
