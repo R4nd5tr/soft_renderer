@@ -30,21 +30,26 @@ struct ShaderContext {
 inline vec3 albedo(const ShaderContext& ctx, const Fragment& f) {
     const Material& m = ctx.material;
     bool useTexture = ctx.env.options & ShaderOptions::AlbedoTexture;
-    if (useTexture && m.baseColorMap.format != TextureFormat::NONE) return m.baseColorMap.sampleColor(f.uv).rgb().toFloat();
+    if (useTexture && m.baseColorMap.format != TextureFormat::NONE) return m.baseColorMap.sampleColor(f.uv).rgb().toLinear();
     return m.diffuse;
 }
 inline vec3 normal(const ShaderContext& ctx, const Fragment& f) {
     const Material& m = ctx.material;
     bool useTexture = ctx.env.options & ShaderOptions::NormalTexture;
+    // use normal map
     if (useTexture && m.normalMap.format != TextureFormat::NONE) return m.normalMap.sampleNormal(f.uv);
-    return f.worldNormal;
+    // use world normal
+    const float len2 = f.worldNormal * f.worldNormal;
+    if (len2 > EPSILON_SQ) return f.worldNormal / std::sqrt(len2);
+    // use face normal
+    return f.faceNormal;
 }
 inline vec3 blinnPhong(const ShaderContext& ctx, const Fragment& f, const vec3& N) {
     const Material& m = ctx.material;
 
     vec3 albedoColor = albedo(ctx, f);
     vec3 result = hadamard(ctx.env.ambient, albedoColor);
-    if (ctx.env.lights.empty()) return clamp01(result);
+    if (ctx.env.lights.empty()) return result;
 
     const vec3 V = normalized(ctx.env.cameraPos - f.worldPos);
 
@@ -70,28 +75,33 @@ inline vec3 blinnPhong(const ShaderContext& ctx, const Fragment& f, const vec3& 
 
         // specular
         const vec3 H = normalized(L + V);
-        result += hadamard(m.specular, lightColor) * LdotN * attenuation * std::pow(std::max(H * N, 0.0f), m.shininess);
+        const float HdotN = std::max(H * N, 0.0f);
+        float spec;
+        if (m.shininessInt > 0) spec = powi(HdotN, m.shininessInt);
+        else
+            spec = std::pow(HdotN, m.shininess);
+        result += hadamard(m.specular, lightColor) * LdotN * attenuation * spec;
     }
-    return clamp01(result);
+    return result;
 }
 
 enum class ShaderKind { Unlit, Normal, FlatBlinnPhong, BlinnPhong };
 using FragmentShader = bool (*)(const ShaderContext&, const Fragment&, Color&);
 
 inline bool unlitShader(const ShaderContext& ctx, const Fragment& f, Color& out) {
-    out = vec3toRGB(albedo(ctx, f));
+    out = linearToRGBA_sRGB(albedo(ctx, f));
     return true;
 }
 inline bool normalShader(const ShaderContext& ctx, const Fragment& f, Color& out) {
     vec3 normalVec = normal(ctx, f);
-    out = vec3toRGB(normalVec * 0.5f + vec3{0.5f, 0.5f, 0.5f});
+    out = vec3toRGBA(normalVec * 0.5f + vec3{0.5f, 0.5f, 0.5f});
     return true;
 }
 inline bool flatBlinnPhongShader(const ShaderContext& ctx, const Fragment& f, Color& out) {
-    out = vec3toRGB(blinnPhong(ctx, f, f.faceNormal)); // use face normal
+    out = linearToRGBA_sRGB(blinnPhong(ctx, f, f.faceNormal)); // use face normal
     return true;
 }
 inline bool blinnPhongShader(const ShaderContext& ctx, const Fragment& f, Color& out) {
-    out = vec3toRGB(blinnPhong(ctx, f, normal(ctx, f))); // use normal
+    out = linearToRGBA_sRGB(blinnPhong(ctx, f, normal(ctx, f))); // use normal
     return true;
 }

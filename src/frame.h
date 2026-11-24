@@ -4,7 +4,7 @@
 
 #define BOTTOM_LEFT_ORIGIN
 
-using Color = RGB;
+using Color = RGBA;
 
 struct Frame {
     std::vector<Color> data;
@@ -33,7 +33,7 @@ inline void scaleToFrame(Frame& srcFrame, Frame& dstFrame) {
 
 inline void clearFrame(Frame& frame) {
     if (frame.data.empty()) return;
-    std::fill(frame.data.begin(), frame.data.end(), Color{0, 0, 0});
+    std::fill(frame.data.begin(), frame.data.end(), Color{0});
 }
 
 inline void drawPixelUnchecked(Frame& frame, const PixelCoord& p, const Color& c) {

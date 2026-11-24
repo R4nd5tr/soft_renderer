@@ -5,6 +5,10 @@
 #include <cstdint>
 #include <iostream>
 
+constexpr float EPSILON = 1e-6f;                // 长度阈值
+constexpr float EPSILON_SQ = EPSILON * EPSILON; // 长度平方阈值 = 1e-12
+constexpr float PI = 3.14159265358979323846f;   // 圆周率
+
 // vectors and matrices from tinyrenderer (https://github.com/ssloy/tinyrenderer)
 // ========================================
 template <int n> struct vec {
@@ -112,7 +116,8 @@ template <int n> float norm(const vec<n>& v) {
 }
 
 template <int n> vec<n> normalized(const vec<n>& v) {
-    return v / norm(v);
+    const float inv = 1.0f / std::sqrt(v * v);
+    return v * inv;
 }
 
 inline vec3 cross(const vec3& v1, const vec3& v2) {
@@ -232,6 +237,8 @@ template <> struct dt<1> { // template specialization to stop the recursion
 };
 // ========================================
 
+// customized functions
+
 template <typename T> T lerp(const T& a, const T& b, float t) {
     return a * (1.0f - t) + b * t;
 }
@@ -260,14 +267,45 @@ template <int n> vec<n>& operator+=(vec<n>& lhs, const vec<n>& rhs) {
         lhs[i] += rhs[i];
     return lhs;
 }
+inline float powi(float base, int n) {
+    float r = 1.0f;
+    while (n) {
+        if (n & 1) r *= base;
+        base *= base;
+        n >>= 1;
+    }
+    return r;
+}
 
-// color structures
+// gamma
+
+inline float srgbToLinear(float c) {
+    return c <= 0.04045f ? c / 12.92f : std::pow((c + 0.055f) / 1.055f, 2.4f);
+}
+inline float linearToSrgb(float c) {
+    return c <= 0.0031308f ? c * 12.92f : 1.055f * std::pow(c, 1.0f / 2.4f) - 0.055f;
+}
+
+struct GammaLUT {
+    float toLinear[256];  // 8 位 sRGB -> 线性 float
+    uint8_t toSrgb[4096]; // 线性 [0,1] 量化到 4096 级 -> 8 位 sRGB
+    GammaLUT() {
+        for (int i = 0; i < 256; ++i)
+            toLinear[i] = srgbToLinear(i / 255.0f);
+        for (int i = 0; i < 4096; ++i)
+            toSrgb[i] = static_cast<uint8_t>(linearToSrgb(i / 4095.0f) * 255.0f + 0.5f);
+    }
+};
+inline const GammaLUT GAMMA_LUT;
+
+// color
 
 struct RGB {
     uint8_t r;
     uint8_t g;
     uint8_t b;
     vec3 toFloat() const { return {r / 255.0f, g / 255.0f, b / 255.0f}; }
+    vec3 toLinear() const { return {GAMMA_LUT.toLinear[r], GAMMA_LUT.toLinear[g], GAMMA_LUT.toLinear[b]}; }
 };
 struct RGBA {
     uint8_t r;
@@ -286,7 +324,14 @@ constexpr RGB YELLOW_RGB = {255, 255, 0};
 constexpr RGB CYAN_RGB = {0, 255, 255};
 constexpr RGB MAGENTA_RGB = {255, 0, 255};
 
-inline RGB vec3toRGB(const vec3& c) {
+inline RGBA vec3toRGBA(const vec3& c) {
     const vec3 v = clamp01(c);
-    return {static_cast<uint8_t>(v.x * 255.0f), static_cast<uint8_t>(v.y * 255.0f), static_cast<uint8_t>(v.z * 255.0f)};
+    return {static_cast<uint8_t>(v.x * 255.0f), static_cast<uint8_t>(v.y * 255.0f), static_cast<uint8_t>(v.z * 255.0f), 255};
+}
+inline RGBA linearToRGBA_sRGB(const vec3& c) {
+    const vec3 v = clamp01(c);
+    return {GAMMA_LUT.toSrgb[static_cast<int>(v.x * 4095.0f + 0.5f)],
+            GAMMA_LUT.toSrgb[static_cast<int>(v.y * 4095.0f + 0.5f)],
+            GAMMA_LUT.toSrgb[static_cast<int>(v.z * 4095.0f + 0.5f)],
+            255};
 }

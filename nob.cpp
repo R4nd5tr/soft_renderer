@@ -36,7 +36,7 @@ namespace fs = std::filesystem;
 // 编译选项
 #if defined(_MSC_VER) && !defined(__clang__)
     #define FLAGS "/std:c++17", "/W4", "/EHsc", "/Z7", "/DEBUG", "/Od", "/DNOMINMAX"
-    #define FLAGS_OPTIMIZED "/std:c++17", "/W4", "/EHsc", "/Z7", "/DNOMINMAX"
+    #define FLAGS_OPTIMIZED "/std:c++17", "/W4", "/EHsc", "/Z7", "/DNDEBUG", "/O2", "/DNOMINMAX"
     #define HEADER "/Isrc", "/external:Iexternal", "/external:W0"
 #else
     #define FLAGS                                                                                                             \
@@ -44,7 +44,7 @@ namespace fs = std::filesystem;
             "-g", "-O0", "-DNOMINMAX"
     #define FLAGS_OPTIMIZED                                                                                                   \
         "-std=c++17", "-Wall", "-Wextra", "-Wno-unused-function", "-Wno-unused-parameter", "-Wno-missing-field-initializers", \
-            "-DNOMINMAX", "-O3"
+            "-g", "-O3", "-march=native", "-fno-math-errno", "-fno-trapping-math", "-DNOMINMAX", "-DNDEBUG"
     #define HEADER "-Isrc", "-Iexternal"
 #endif
 
@@ -118,8 +118,11 @@ int main(int argc, char** argv) {
     NOB_GO_REBUILD_URSELF(argc, argv);
 
     bool optimize = false;
-    for (int i = 1; i < argc; ++i)
+    bool rebuild = false;
+    for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "-O") == 0) optimize = true;
+        if (strcmp(argv[i], "-r") == 0) rebuild = true;
+    }
 
     // 检查 src/ 和 external/ 目录是否存在
     if (!fs::exists("src")) {
@@ -172,7 +175,7 @@ int main(int argc, char** argv) {
         // 检查目标文件是否需要重新编译
         const int needs = nob_needs_rebuild(obj.c_str(), inputs.data(), inputs.size());
         if (needs < 0) return 1;
-        if (needs == 0) continue; // 没变，跳过
+        if (needs == 0 && !rebuild) continue; // 没变，跳过
 
         // 如果当前并行编译的进程数已经达到 CPU 核心数，则等待所有进程结束
         if (procs.count >= static_cast<size_t>(nob_nprocs())) {

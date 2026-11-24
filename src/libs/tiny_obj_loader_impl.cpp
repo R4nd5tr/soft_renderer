@@ -45,6 +45,11 @@ Model loadModelFromObj(const std::filesystem::path& path) {
         material.transmittance = {mat.transmittance[0], mat.transmittance[1], mat.transmittance[2]};
         material.emissive = {mat.emission[0], mat.emission[1], mat.emission[2]};
         material.shininess = mat.shininess;
+        if (std::isfinite(mat.shininess) && std::floor(mat.shininess) == mat.shininess) {
+            material.shininessInt = static_cast<int>(mat.shininess);
+        } else {
+            material.shininessInt = 0;
+        }
         material.opacity = mat.dissolve;
         material.indexOfRefraction = mat.ior;
         material.illuminationModel = mat.illum;
@@ -62,7 +67,8 @@ Model loadModelFromObj(const std::filesystem::path& path) {
         model.materials.emplace_back(std::move(material));
     }
 
-    if (model.materials.empty()) model.materials.emplace_back(DEFAULT_MATERIAL);
+    const int defaultMat = static_cast<int>(model.materials.size());
+    model.materials.emplace_back(DEFAULT_MATERIAL);
 
     // ---- 每个 shape 生成一个 Mesh，内部按 material_id 合并 SubMesh ----
     for (const auto& shape : shapes) {
@@ -84,7 +90,7 @@ Model loadModelFromObj(const std::filesystem::path& path) {
             int mat = matIds[f];
             if (mat != currentMat) {
                 SubMesh sm;
-                sm.materialIndex = currentMat < 0 ? static_cast<int>(model.materials.size()) : currentMat;
+                sm.materialIndex = currentMat < 0 ? defaultMat : currentMat;
                 sm.indexOffset = triStart * 3;
                 sm.indexCount = (f - triStart) * 3;
                 mesh.subMeshes.push_back(sm);
@@ -94,7 +100,7 @@ Model loadModelFromObj(const std::filesystem::path& path) {
         }
         // 最后一个
         SubMesh sm;
-        sm.materialIndex = currentMat < 0 ? static_cast<int>(model.materials.size()) : currentMat;
+        sm.materialIndex = currentMat < 0 ? defaultMat : currentMat;
         sm.indexOffset = triStart * 3;
         sm.indexCount = (triCount - triStart) * 3;
         mesh.subMeshes.push_back(sm);

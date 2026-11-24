@@ -12,7 +12,7 @@ int FixedToPixel(Fixed v) {
     return floorDiv(v, SUBPIXEL_SCALE);
 }
 Fixed toSubPixel(float ndc, int size) {
-    return static_cast<Fixed>(std::llround((ndc + 1.0) * SUBPIXEL_SCALE * size * 0.5));
+    return static_cast<Fixed>((ndc + 1.0) * SUBPIXEL_SCALE * size * 0.5);
 }
 
 Fixed signedArea2(const ScreenTriangle& t) {
@@ -44,7 +44,7 @@ void rasterize3D(Frame& frame, ZBuffer& zBuffer, const Primitive& tri, const Sha
     ScreenTriangle t = projectNdcToScreen(ndct, frame.width, frame.height);
 
     Fixed totalArea2 = signedArea2(t);
-    if (totalArea2 < MIN_AREA2) return; // backface culling and degenerate triangle check
+    if (totalArea2 <= 0) return; // backface culling
     const float invArea2 = 1.0f / static_cast<float>(totalArea2);
 
     // bounding box of the triangle, clamped to the frame boundaries
@@ -98,7 +98,7 @@ void rasterize3D(Frame& frame, ZBuffer& zBuffer, const Primitive& tri, const Sha
                     Fragment f;
                     f.uv = (v1.uv * p1 + v2.uv * p2 + v3.uv * p3) * invP;
                     f.worldPos = (v1.worldPos * p1 + v2.worldPos * p2 + v3.worldPos * p3) * invP;
-                    f.worldNormal = normalized((v1.worldNormal * p1 + v2.worldNormal * p2 + v3.worldNormal * p3) * invP);
+                    f.worldNormal = (v1.worldNormal * p1 + v2.worldNormal * p2 + v3.worldNormal * p3) * invP;
                     f.faceNormal = faceNormal;
 
                     Color color;
@@ -146,8 +146,12 @@ constexpr vec4 CLIP_PLANES[] = {
     {0, -1, 0, 1}, // top:    -y + w >= 0
 };
 constexpr int MAX_CLIP_VERTS = 12;
+struct ClipResult {
+    const VertexOut* verts; // 指向 in / buf0 / buf1 之一
+    int count;
+};
 // 用单个平面对凸多边形裁剪（Sutherland–Hodgman 一步）
-int clipPolygonAgainstPlane(const VertexOut* in, int inCount, const vec4& plane, VertexOut* out) {
+ClipResult clipPolygonAgainstPlane(const VertexOut* in, int inCount, const vec4& plane, VertexOut* out) {
     float distance[MAX_CLIP_VERTS];
     bool allIn = true, allOut = true;
     for (int i = 0; i < inCount; ++i) {
@@ -157,11 +161,8 @@ int clipPolygonAgainstPlane(const VertexOut* in, int inCount, const vec4& plane,
             allIn = false;
     }
 
-    if (allIn) { // 快路径：整个在内侧，跳过裁剪
-        std::copy(in, in + inCount, out);
-        return inCount;
-    }
-    if (allOut) return 0; // 快路径：整个在外侧，直接剔除
+    if (allIn) return {in, inCount}; // 快路径：整个在内侧，跳过裁剪
+    if (allOut) return {nullptr, 0}; // 快路径：整个在外侧，直接剔除
 
     int outCount = 0;
     for (int i = 0; i < inCount; ++i) {
@@ -181,25 +182,26 @@ int clipPolygonAgainstPlane(const VertexOut* in, int inCount, const vec4& plane,
             outCount += 1;
         }
     }
-    return outCount;
+    return {out, outCount};
 }
 struct ClipBuffers {
-    VertexOut poly[MAX_CLIP_VERTS]; // 裁剪输出
     VertexOut buf0[MAX_CLIP_VERTS]; // 双缓冲
     VertexOut buf1[MAX_CLIP_VERTS];
 };
-int clipTriangle(const VertexOut in[3], ClipBuffers& buf) {
-    std::copy(in, in + 3, buf.buf0);
-    VertexOut* src = buf.buf0;
-    VertexOut* dst = buf.buf1;
+ClipResult clipTriangle(const VertexOut in[3], ClipBuffers& buf) {
+    const VertexOut* src = in;
+    VertexOut* dst = buf.buf0;
     int n = 3;
     for (const auto& p : CLIP_PLANES) {
-        n = clipPolygonAgainstPlane(src, n, p, dst);
-        if (n < 3) return 0;
-        std::swap(src, dst);
+        const ClipResult r = clipPolygonAgainstPlane(src, n, p, dst);
+        n = r.count;
+        if (n < 3) return {nullptr, 0};
+        if (r.verts == dst) { // 只有真的写了 dst才推进双缓冲
+            src = dst;
+            dst = (dst == buf.buf0) ? buf.buf1 : buf.buf0;
+        }
     }
-    std::copy(src, src + n, buf.poly);
-    return n;
+    return {src, n};
 }
 
 Primitive Renderer::getPrimitive(const Model& model, const Mesh& mesh, const SubMesh& subMesh, size_t triIndex) const {
@@ -224,11 +226,13 @@ static void renderSubMesh(const Renderer& renderer,
     ClipBuffers buf;
     for (size_t i = 0; i < subMesh.indexCount; i += 3) {
         const auto t = renderer.getPrimitive(model, mesh, subMesh, i);
-        const int n = clipTriangle(t.v, buf);
+        const auto result = clipTriangle(t.v, buf);
+        int n = result.count;
+        const VertexOut* bufPtr = result.verts;
         if (n < 3) continue;
 
         for (int k = 1; k + 1 < n; ++k) {
-            const Primitive p{buf.poly[0], buf.poly[k], buf.poly[k + 1]};
+            const Primitive p{bufPtr[0], bufPtr[k], bufPtr[k + 1]};
             rasterize3D<shader>(frame, zBuffer, p, ctx);
         }
     }

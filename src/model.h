@@ -100,7 +100,8 @@ struct Material {
     vec3 transmittance{0.0f, 0.0f, 0.0f}; // Tf
     vec3 emissive{0.0f, 0.0f, 0.0f};      // Ke
 
-    float shininess = 32.0;        // Ns
+    float shininess = 32.0; // Ns
+    int shininessInt = 32;
     float indexOfRefraction = 1.0; // Ni
     float opacity = 1.0;           // d
     int illuminationModel = 2;     // illum

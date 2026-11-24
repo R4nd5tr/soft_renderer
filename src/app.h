@@ -35,6 +35,7 @@ public:
     int windowWidth = renderWidth * renderScale, windowHeight = renderHeight * renderScale;
     Frame renderFrame{std::vector<Color>(renderWidth * renderHeight), renderWidth, renderHeight};
     Frame windowFrame{std::vector<Color>(windowWidth * windowHeight), windowWidth, windowHeight};
+    Frame& renderTarget() { return renderScale == 1 ? windowFrame : renderFrame; }
 
     RGFW_window* win = nullptr;
     RGFW_surface* surface = nullptr;

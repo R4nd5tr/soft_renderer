@@ -22,7 +22,7 @@ struct Camera {
                          vec4{0, 0, 0, 1}};
     }
     mat<4, 4> perspective() const {
-        float f = 1.0f / std::tan(fov * 0.5f * 3.14159265358979323846f / 180.0f);
+        float f = 1.0f / std::tan(fov * 0.5f * PI / 180.0f);
         mat<4, 4> projMatrix;
         projMatrix[0] = {f / aspect, 0, 0, 0};
         projMatrix[1] = {0, f, 0, 0};
