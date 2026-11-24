@@ -1,5 +1,6 @@
 #pragma once
 #include "math_utils.h"
+#include "transform.h"
 #include <cstdint>
 #include <filesystem>
 #include <string>
@@ -143,7 +144,7 @@ struct Model { // one .obj file corresponds to one Model
     // one .obj file can have multiple shapes, each shape corresponds to one Mesh
     std::vector<Mesh> meshes;
 
-    mat<4, 4> transform = {vec4{1, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 1, 0}, {0, 0, 0, 1}}; // Identity matrix
+    Transform transform;
 };
 
 Model loadModelFromObj(const std::filesystem::path& objPath);

@@ -119,9 +119,18 @@ int main(int argc, char** argv) {
 
     bool optimize = false;
     bool rebuild = false;
+    bool parallel = false;
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "-O") == 0) optimize = true;
         if (strcmp(argv[i], "-r") == 0) rebuild = true;
+        if (strcmp(argv[i], "-p") == 0) parallel = true;
+        if (strcmp(argv[i], "-h") == 0) {
+            nob_log(NOB_INFO, "Usage: nob [-O] [-r] [-p]");
+            nob_log(NOB_INFO, "  -O: optimize");
+            nob_log(NOB_INFO, "  -r: rebuild");
+            nob_log(NOB_INFO, "  -p: parallel");
+            return 0;
+        }
     }
 
     // 检查 src/ 和 external/ 目录是否存在
@@ -189,7 +198,11 @@ int main(int argc, char** argv) {
         } else {
             nob_cmd_append(&cmd, CC, FLAGS, HEADER, COMPILE_ONLY, source.c_str(), OBJ_OUT, obj.c_str());
         }
-        if (!nob_cmd_run(&cmd, .async = &procs)) return 1; // 只登记进程，立即返回
+        if (parallel) {
+            if (!nob_cmd_run(&cmd, .async = &procs)) return 1; // 并行，只登记进程，立即返回
+        } else {
+            if (!nob_cmd_run(&cmd)) return 1; // 同步执行
+        }
     }
 
     // 等所有编译进程结束，任何一个失败都返回 false

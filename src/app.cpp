@@ -32,13 +32,69 @@ bool App::init() {
 void App::handleEvents() {
     RGFW_event event;
     while (RGFW_window_checkEvent(win, &event)) {
-        if (event.type != RGFW_keyPressed || event.key.repeat) continue;
-        switch (event.key.value) {
-        case RGFW_p:
-            paused = !paused;
+        switch (event.type) {
+        case RGFW_keyPressed:
+        case RGFW_keyReleased: {
+            const bool down = event.type == RGFW_keyPressed;
+            switch (event.key.value) {
+            case RGFW_w:
+                input.forward = down;
+                break;
+            case RGFW_a:
+                input.left = down;
+                break;
+            case RGFW_s:
+                input.backward = down;
+                break;
+            case RGFW_d:
+                input.right = down;
+                break;
+            case RGFW_space:
+                input.up = down;
+                break;
+            case RGFW_controlL:
+                input.down = down;
+                break;
+            default:
+                break;
+            }
+            if (down && !event.key.repeat) {
+                switch (event.key.value) {
+                case RGFW_p:
+                    paused = !paused;
+                    break;
+                case RGFW_bracket:
+                    if (paused || !update) stepRequested = true;
+                    break;
+                case RGFW_o:
+                    update = !update;
+                    break;
+                default:
+                    break;
+                }
+            }
             break;
-        case RGFW_bracket:
-            if (paused) stepRequested = true;
+        }
+        case RGFW_mouseButtonPressed:
+            if (event.button.value == RGFW_mouseLeft) input.dragging = true;
+            break;
+        case RGFW_mouseButtonReleased:
+            if (event.button.value == RGFW_mouseLeft) input.dragging = false;
+            break;
+        case RGFW_mousePosChanged: {
+            const int x = event.mouse.x, y = event.mouse.y;
+            if (input.dragging) { // 只累加，不动相机
+                input.dragDx += x - input.mouseX;
+                input.dragDy += y - input.mouseY;
+            }
+            input.mouseX = x;
+            input.mouseY = y;
+            break;
+        }
+        case RGFW_mouseScroll:
+            input.scrollDelta += event.scroll.y; // 向前滚为正
+            break;
+        default:
             break;
         }
     }
@@ -74,7 +130,8 @@ void App::run() {
             const auto t0 = Clock::now();
             clearFrame(target);
             const auto t1 = Clock::now();
-            updateScene(deltaTime);
+            if (update || stepRequested) updateScene(deltaTime);
+            updateCamera(deltaTime); // camera movement
             const auto t2 = Clock::now();
             renderer.renderScene(scene, target);
             const auto t3 = Clock::now();
@@ -123,18 +180,21 @@ Scene App::loadScene() {
     scene.clearOption(ShaderOptions::NormalTexture);
 
     // scene.addModel("obj/african_head/african_head.obj");
+    // scene.addModel("obj/boggie/boggie.obj");
     // scene.addModel("obj/Counter Srike GO AWP model/Model.obj");
     // scene.addModel("obj/diablo3_pose/diablo3_pose.obj");
-    // scene.addModel("obj/boggie/boggie.obj");
-    scene.addModel("obj/miku_plush/miku_plush.obj");
+    // scene.addModel("obj/F-15C_Eagle/F-15C_Eagle.obj");
+    // scene.addModel("obj/floor/floor.obj");
+    // scene.addModel("obj/miku_plush/miku_plush.obj");
     // scene.addModel("obj/teapot.obj");
     // scene.addModel("obj/teto/teto.obj");
 
     // Too big!
     // scene.addModel("obj/iron_golem/iron_golem.obj");
-    // scene.addModel("obj/HatsuneMiku/HatsuneMiku.obj");
+    scene.addModel("obj/HatsuneMiku/HatsuneMiku.obj");
 
     // Too small!
+    // scene.addModel("obj/glck ruger hybrid/glck ruger hybrid.obj");
     // scene.addModel("obj/YYB Miku/YYB Miku.obj");
     // scene.addModel("obj/stanford-bunny.obj");
 
@@ -142,8 +202,34 @@ Scene App::loadScene() {
 }
 
 void App::updateScene(float deltaTime) {
-    scene.camera.orbitYaw(deltaTime * 0.5f); // 相机绕目标点旋转
+
+    for (auto& model : scene.models) { // model rotation
+        model.transform.rotateLocal(vec3{0, 1, 0}, 0.1f * deltaTime);
+    }
 }
 
 // TODO: 法线贴图，切线空间加载
 // TODO: 相机控制功能，2DUI功能
+
+void App::updateCamera(float deltaTime) {
+    // 鼠标拖拽：消费累计的位移
+    if (input.dragDx != 0 || input.dragDy != 0) {
+        scene.camera.orbitYaw(-input.dragDx * mouseSensitivity);
+        scene.camera.orbitPitch(-input.dragDy * mouseSensitivity);
+        input.dragDx = input.dragDy = 0;
+    }
+    if (input.scrollDelta != 0.0f) {
+        const float step = scene.camera.distance() * zoomSpeed * input.scrollDelta;
+        scene.camera.dolly(step);
+        input.scrollDelta = 0.0f;
+    }
+    // WASD + 空格/Ctrl
+    const float v = moveSpeed * scene.camera.distance() * deltaTime;
+    const float f = (input.forward ? v : 0) - (input.backward ? v : 0);
+    const float r = (input.right ? v : 0) - (input.left ? v : 0);
+    const float u = (input.up ? v : 0) - (input.down ? v : 0);
+    if (f != 0 || r != 0 || u != 0) {
+        const vec3 delta = scene.camera.forwardDir() * f + scene.camera.rightDir() * r + vec3{0.0f, u, 0.0f};
+        scene.camera.move(delta);
+    }
+}

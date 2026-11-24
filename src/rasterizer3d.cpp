@@ -239,8 +239,9 @@ static void renderSubMesh(const Renderer& renderer,
 }
 
 void Renderer::render3DModel(const Model& model, Frame& frame, const mat<4, 4>& viewProj, const ShadingEnv& env) {
-    mat<4, 4> mvp = viewProj * model.transform;
-    mat<4, 4> normalMat = model.transform.invert_transpose();
+    mat<4, 4> m = model.transform.matrix();
+    mat<4, 4> mvp = viewProj * m;
+    mat<4, 4> normalMat = m.invert_transpose();
 
     const size_t numVertices = model.vertices.size();
     clipVertices.resize(numVertices);
@@ -250,7 +251,7 @@ void Renderer::render3DModel(const Model& model, Frame& frame, const mat<4, 4>& 
     // Transform all vertices of the model to clip space and world space
     for (size_t i = 0; i < numVertices; ++i) {
         clipVertices[i] = mvp * model.vertices[i];
-        worldVertices[i] = (model.transform * model.vertices[i]).xyz();
+        worldVertices[i] = (m * model.vertices[i]).xyz();
     }
     // Transform all normals of the model to world space
     for (size_t i = 0; i < model.normals.size(); ++i)
@@ -286,7 +287,7 @@ void Renderer::renderScene(const Scene& scene, Frame& frame) {
     zBuffer.resize(frame.width, frame.height);
     zBuffer.clear();
 
-    ShadingEnv env = {scene.camera.position,
+    ShadingEnv env = {scene.camera.position(),
                       scene.lights,
                       scene.ambientLight.color.toFloat() * scene.ambientLight.intensity,
                       scene.shaderKind,
