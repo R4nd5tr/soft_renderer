@@ -16,7 +16,7 @@ struct Camera {
     float fov = 90.0f;
     float aspect = 1.0f;
     float nearPlane = 0.1f;
-    float farPlane = 200.0f;
+    float farPlane = 1000.0f;
 
     // 由 (yaw, pitch, dist) 现算 position：pivot + dir * dist
     vec3 position() const {

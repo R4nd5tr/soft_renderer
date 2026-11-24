@@ -64,10 +64,7 @@ void App::handleEvents() {
                     paused = !paused;
                     break;
                 case RGFW_bracket:
-                    if (paused || !update) stepRequested = true;
-                    break;
-                case RGFW_o:
-                    update = !update;
+                    if (paused) stepRequested = true;
                     break;
                 default:
                     break;
@@ -124,33 +121,29 @@ void App::run() {
 
         handleEvents();
 
-        if (!paused || stepRequested) {
-            Frame& target = renderTarget();
+        Frame& target = renderTarget();
 
-            const auto t0 = Clock::now();
-            clearFrame(target);
-            const auto t1 = Clock::now();
-            if (update || stepRequested) updateScene(deltaTime);
-            updateCamera(deltaTime); // camera movement
-            const auto t2 = Clock::now();
-            renderer.renderScene(scene, target);
-            const auto t3 = Clock::now();
-            present();
-            const auto t4 = Clock::now();
+        const auto t0 = Clock::now();
+        clearFrame(target);
+        const auto t1 = Clock::now();
+        updateCamera(deltaTime); // camera movement
+        if (!paused || stepRequested) updateScene(deltaTime);
+        const auto t2 = Clock::now();
+        renderer.renderScene(scene, target);
+        const auto t3 = Clock::now();
+        present();
+        const auto t4 = Clock::now();
 
-            stepRequested = false;
-            ++frameNumber;
+        stepRequested = false;
+        ++frameNumber;
 
-            sumClear += ms(t1 - t0);
-            sumUpdate += ms(t2 - t1);
-            sumRender += ms(t3 - t2);
-            sumPresent += ms(t4 - t3);
-            sumWork += ms(t4 - t0);
-            sumFrame += frameMs;
-            ++measured;
-        } else {
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        }
+        sumClear += ms(t1 - t0);
+        sumUpdate += ms(t2 - t1);
+        sumRender += ms(t3 - t2);
+        sumPresent += ms(t4 - t3);
+        sumWork += ms(t4 - t0);
+        sumFrame += frameMs;
+        ++measured;
     }
 
     if (measured == 0) return;
@@ -185,13 +178,13 @@ Scene App::loadScene() {
     // scene.addModel("obj/diablo3_pose/diablo3_pose.obj");
     // scene.addModel("obj/F-15C_Eagle/F-15C_Eagle.obj");
     // scene.addModel("obj/floor/floor.obj");
-    // scene.addModel("obj/miku_plush/miku_plush.obj");
+    scene.addModel("obj/miku_plush/miku_plush.obj");
     // scene.addModel("obj/teapot.obj");
     // scene.addModel("obj/teto/teto.obj");
 
     // Too big!
     // scene.addModel("obj/iron_golem/iron_golem.obj");
-    scene.addModel("obj/HatsuneMiku/HatsuneMiku.obj");
+    // scene.addModel("obj/HatsuneMiku/HatsuneMiku.obj");
 
     // Too small!
     // scene.addModel("obj/glck ruger hybrid/glck ruger hybrid.obj");
@@ -204,7 +197,7 @@ Scene App::loadScene() {
 void App::updateScene(float deltaTime) {
 
     for (auto& model : scene.models) { // model rotation
-        model.transform.rotateLocal(vec3{0, 1, 0}, 0.1f * deltaTime);
+        model.transform.rotateLocal(vec3{0, 1, 0}, 0.15f * deltaTime);
     }
 }
 

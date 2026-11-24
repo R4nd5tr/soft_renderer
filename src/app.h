@@ -44,8 +44,7 @@ public:
     Renderer renderer;
 
     bool paused = false;        // pause simulation or not
-    bool stepRequested = false; // step to next frame
-    bool update = true;         // update scene or not
+    bool stepRequested = false; // step to next simulation step
     size_t frameNumber = 0;
 
     struct InputState {
