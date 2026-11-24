@@ -90,7 +90,7 @@ void rasterize3D(Frame& frame, ZBuffer& zBuffer, const Primitive& tri, const Sha
 
                 const float depth = ndct.v1.z * b1 + ndct.v2.z * b2 + ndct.v3.z * b3;
                 float& z = zBuffer.data[y * frame.width + x];
-                if (depth <= z) {
+                if (depth >= z) {
                     const float p1 = b1 * invClipW1, p2 = b2 * invClipW2,
                                 p3 = b3 * invClipW3;          // Perspective-correct barycentric coordinates
                     const float invP = 1.0f / (p1 + p2 + p3); // for normalization
@@ -126,24 +126,14 @@ VertexOut lerpVertex(const VertexOut& v1, const VertexOut& v2, float t) {
     v.uv = lerp(v1.uv, v2.uv, t);
     return v;
 }
-// 在NDC空间中，所有顶点都变换到了[-1, 1]^3立方体中
-// 裁剪空间(x, y, z, w) -> NDC空间(x/w, y/w, z/w)
-// 也就是 -1 <= x/w <= 1, -1 <= y/w <= 1, -1 <= z/w <= 1
-// 不等式两边同时乘以w，得到 -w <= x <= w, -w <= y <= w, -w <= z <= w
-// 也就是 x >= -w, y >= -w, z >= -w, x <= w, y <= w, z <= w
-// 也就是 z + w, -z + w, -x + w, x + w, -y + w, y + w >= 0
-// z + w刚好可以表示为(x, y, z, w) * (0, 0, 1, 1)
-// 于是平面就表示为下面CLIP_PLANES[]中的形式
-// 计算下面的平面表示和顶点的点积，如果点积大于0，则在平面内，否则在平面外
-// 这样就可以确认顶点是否在平面内
-// 用平面表示裁剪空间的六个面，然后用Sutherland–Hodgman算法裁剪
+
 constexpr vec4 CLIP_PLANES[] = {
-    {0, 0, 1, 1},  // near:    z + w >= 0
-    {0, 0, -1, 1}, // far:    -z + w >= 0
-    {1, 0, 0, 1},  // left:    x + w >= 0
-    {-1, 0, 0, 1}, // right:  -x + w >= 0
-    {0, 1, 0, 1},  // bottom:  y + w >= 0
-    {0, -1, 0, 1}, // top:    -y + w >= 0
+    {0, 0, -1, 1}, // near:  w - z >= 0   (z_ndc <= 1)
+    {0, 0, 1, 0},  // far:   z >= 0       (z_ndc >= 0)
+    {1, 0, 0, 1},  // left
+    {-1, 0, 0, 1}, // right
+    {0, 1, 0, 1},  // bottom
+    {0, -1, 0, 1}, // top
 };
 constexpr int MAX_CLIP_VERTS = 12;
 struct ClipResult {

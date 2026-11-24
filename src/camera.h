@@ -2,7 +2,7 @@
 #include "math_utils.h"
 #include <algorithm>
 
-constexpr float CAMERA_MIN_DISTANCE = 0.1f;
+constexpr float CAMERA_MIN_DISTANCE = 0.01f;
 constexpr float CAMERA_PITCH_LIMIT = 1.55f; // ≈ 88.8°，留余量避免 up×forward 退化
 
 struct Camera {
@@ -15,7 +15,7 @@ struct Camera {
     // ===== 镜头参数 =====
     float fov = 90.0f;
     float aspect = 1.0f;
-    float nearPlane = 0.1f;
+    float nearPlane = 0.01f;
     float farPlane = 1000.0f;
 
     // 由 (yaw, pitch, dist) 现算 position：pivot + dir * dist
@@ -41,10 +41,11 @@ struct Camera {
 
     mat<4, 4> perspective() const {
         float f = 1.0f / std::tan(fov * 0.5f * PI / 180.0f);
+        const float n = nearPlane, fa = farPlane;
         mat<4, 4> p;
         p[0] = {f / aspect, 0, 0, 0};
         p[1] = {0, f, 0, 0};
-        p[2] = {0, 0, (farPlane + nearPlane) / (nearPlane - farPlane), (2 * farPlane * nearPlane) / (nearPlane - farPlane)};
+        p[2] = {0, 0, n / (fa - n), n * fa / (fa - n)}; // reverse-Z：近 → 1，远 → 0
         p[3] = {0, 0, -1, 0};
         return p;
     }

@@ -60,9 +60,9 @@ struct ZBuffer {
     void resize(int w, int h) {
         width = w;
         height = h;
-        data.resize(w * h, std::numeric_limits<float>::infinity());
+        data.resize(w * h, 0.0f);
     }
 
-    void clear() { std::fill(data.begin(), data.end(), std::numeric_limits<float>::infinity()); }
+    void clear() { std::fill(data.begin(), data.end(), 0.0f); }
     bool toImage(const std::string& filename);
 };

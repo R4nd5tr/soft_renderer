@@ -205,7 +205,7 @@ Scene App::loadScene() {
     // scene.addModel("obj/african_head/african_head.obj");
     // scene.addModel("obj/boggie/boggie.obj");
     // scene.addModel("obj/Counter Srike GO AWP model/Model.obj");
-    // scene.addModel("obj/diablo3_pose/diablo3_pose.obj");
+    scene.addModel("obj/diablo3_pose/diablo3_pose.obj");
     // scene.addModel("obj/F-15C_Eagle/F-15C_Eagle.obj");
     // scene.addModel("obj/floor/floor.obj");
     // scene.addModel("obj/miku_plush/miku_plush.obj");
