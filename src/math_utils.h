@@ -245,7 +245,8 @@ template <typename T> T lerp(const T& a, const T& b, float t) {
 template <int n> vec<n> clamp01(const vec<n>& v) {
     vec<n> ret;
     for (int i = 0; i < n; i++) {
-        ret[i] = std::clamp(v[i], 0.0f, 1.0f);
+        const float x = v[i];
+        ret[i] = x > 0.0f ? (x < 1.0f ? x : 1.0f) : 0.0f;
     }
     return ret;
 }

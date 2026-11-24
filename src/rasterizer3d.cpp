@@ -241,7 +241,7 @@ static void renderSubMesh(const Renderer& renderer,
 void Renderer::render3DModel(const Model& model, Frame& frame, const mat<4, 4>& viewProj, const ShadingEnv& env) {
     mat<4, 4> m = model.transform.matrix();
     mat<4, 4> mvp = viewProj * m;
-    mat<4, 4> normalMat = m.invert_transpose();
+    mat<4, 4> normalMat = model.transform.normalMatrix();
 
     const size_t numVertices = model.vertices.size();
     clipVertices.resize(numVertices);

@@ -126,8 +126,9 @@ void App::run() {
         const auto t0 = Clock::now();
         clearFrame(target);
         const auto t1 = Clock::now();
-        updateCamera(deltaTime); // camera movement
-        if (!paused || stepRequested) updateScene(deltaTime);
+        const bool cameraChanged = updateCamera(deltaTime);
+        const bool sceneChanged = !paused || stepRequested;
+        if (sceneChanged) updateScene(deltaTime);
         const auto t2 = Clock::now();
         renderer.renderScene(scene, target);
         const auto t3 = Clock::now();
@@ -135,8 +136,8 @@ void App::run() {
         const auto t4 = Clock::now();
 
         stepRequested = false;
-        ++frameNumber;
 
+        ++frameNumber;
         sumClear += ms(t1 - t0);
         sumUpdate += ms(t2 - t1);
         sumRender += ms(t3 - t2);
@@ -156,6 +157,35 @@ void App::run() {
     std::printf("present  %7.3f ms\n", sumPresent / n);
     std::printf("work     %7.3f ms   (clear+update+render+present)\n", sumWork / n);
     std::printf("frame   %7.3f ms   => %.1f FPS\n", sumFrame / n, fps);
+}
+
+bool App::updateCamera(float deltaTime) {
+    bool moved = false;
+    // 鼠标拖拽：消费累计的位移
+    if (input.dragDx != 0 || input.dragDy != 0) {
+        scene.camera.orbitYaw(-input.dragDx * mouseSensitivity);
+        scene.camera.orbitPitch(-input.dragDy * mouseSensitivity);
+        input.dragDx = input.dragDy = 0;
+        moved = true;
+    }
+    // 鼠标滚轮：缩放
+    if (input.scrollDelta != 0.0f) {
+        const float step = scene.camera.distance() * zoomSpeed * input.scrollDelta;
+        scene.camera.dolly(step);
+        input.scrollDelta = 0.0f;
+        moved = true;
+    }
+    // WASD + 空格/Ctrl
+    const float v = moveSpeed * scene.camera.distance() * deltaTime;
+    const float f = (input.forward ? v : 0) - (input.backward ? v : 0);
+    const float r = (input.right ? v : 0) - (input.left ? v : 0);
+    const float u = (input.up ? v : 0) - (input.down ? v : 0);
+    if (f != 0 || r != 0 || u != 0) {
+        const vec3 delta = scene.camera.forwardDir() * f + scene.camera.rightDir() * r + vec3{0.0f, u, 0.0f};
+        scene.camera.move(delta);
+        moved = true;
+    }
+    return moved;
 }
 
 // ============================================================
@@ -178,7 +208,7 @@ Scene App::loadScene() {
     // scene.addModel("obj/diablo3_pose/diablo3_pose.obj");
     // scene.addModel("obj/F-15C_Eagle/F-15C_Eagle.obj");
     // scene.addModel("obj/floor/floor.obj");
-    scene.addModel("obj/miku_plush/miku_plush.obj");
+    // scene.addModel("obj/miku_plush/miku_plush.obj");
     // scene.addModel("obj/teapot.obj");
     // scene.addModel("obj/teto/teto.obj");
 
@@ -187,42 +217,16 @@ Scene App::loadScene() {
     // scene.addModel("obj/HatsuneMiku/HatsuneMiku.obj");
 
     // Too small!
-    // scene.addModel("obj/glck ruger hybrid/glck ruger hybrid.obj");
-    // scene.addModel("obj/YYB Miku/YYB Miku.obj");
+    // scene.addModel("obj/YYB_Miku/YYB_Miku.obj");
     // scene.addModel("obj/stanford-bunny.obj");
 
     return scene;
 }
 
 void App::updateScene(float deltaTime) {
-
     for (auto& model : scene.models) { // model rotation
-        model.transform.rotateLocal(vec3{0, 1, 0}, 0.15f * deltaTime);
+        model.transform.rotateLocal(vec3{0, 1, 0}, 0.5f * deltaTime);
     }
 }
 
-// TODO: 法线贴图，切线空间加载
-// TODO: 相机控制功能，2DUI功能
-
-void App::updateCamera(float deltaTime) {
-    // 鼠标拖拽：消费累计的位移
-    if (input.dragDx != 0 || input.dragDy != 0) {
-        scene.camera.orbitYaw(-input.dragDx * mouseSensitivity);
-        scene.camera.orbitPitch(-input.dragDy * mouseSensitivity);
-        input.dragDx = input.dragDy = 0;
-    }
-    if (input.scrollDelta != 0.0f) {
-        const float step = scene.camera.distance() * zoomSpeed * input.scrollDelta;
-        scene.camera.dolly(step);
-        input.scrollDelta = 0.0f;
-    }
-    // WASD + 空格/Ctrl
-    const float v = moveSpeed * scene.camera.distance() * deltaTime;
-    const float f = (input.forward ? v : 0) - (input.backward ? v : 0);
-    const float r = (input.right ? v : 0) - (input.left ? v : 0);
-    const float u = (input.up ? v : 0) - (input.down ? v : 0);
-    if (f != 0 || r != 0 || u != 0) {
-        const vec3 delta = scene.camera.forwardDir() * f + scene.camera.rightDir() * r + vec3{0.0f, u, 0.0f};
-        scene.camera.move(delta);
-    }
-}
+// TODO: 法线贴图，切线空间加载, 2DUI功能

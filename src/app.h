@@ -59,5 +59,5 @@ public:
     float mouseSensitivity = 0.005f; // 每格鼠标移动量的旋转角度
     float zoomSpeed = 0.1f;          // 每格滚轮缩放当前距离的比例
 
-    void updateCamera(float deltaTime);
+    bool updateCamera(float deltaTime);
 };
