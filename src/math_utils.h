@@ -8,6 +8,7 @@
 constexpr float EPSILON = 1e-6f;                // 长度阈值
 constexpr float EPSILON_SQ = EPSILON * EPSILON; // 长度平方阈值 = 1e-12
 constexpr float PI = 3.14159265358979323846f;   // 圆周率
+constexpr float INV_255 = 1.0f / 255.0f;        // 1/255
 
 // vectors and matrices from tinyrenderer (https://github.com/ssloy/tinyrenderer)
 // ========================================

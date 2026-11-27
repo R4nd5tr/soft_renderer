@@ -64,26 +64,26 @@ struct Texture {
         vec3 normal{0, 0, 1};
         switch (format) {
         case TextureFormat::GRAY:
-            normal.x = normal.y = normal.z = data[idx] / 255.0f;
+            normal.x = normal.y = normal.z = data[idx] * INV_255;
             break;
         case TextureFormat::GRAY_ALPHA:
-            normal.x = normal.y = normal.z = data[idx] / 255.0f;
+            normal.x = normal.y = normal.z = data[idx] * INV_255;
             break;
         case TextureFormat::RGB:
-            normal.x = data[idx] / 255.0f;
-            normal.y = data[idx + 1] / 255.0f;
-            normal.z = data[idx + 2] / 255.0f;
+            normal.x = data[idx] * INV_255;
+            normal.y = data[idx + 1] * INV_255;
+            normal.z = data[idx + 2] * INV_255;
             break;
         case TextureFormat::RGBA:
-            normal.x = data[idx] / 255.0f;
-            normal.y = data[idx + 1] / 255.0f;
-            normal.z = data[idx + 2] / 255.0f;
+            normal.x = data[idx] * INV_255;
+            normal.y = data[idx + 1] * INV_255;
+            normal.z = data[idx + 2] * INV_255;
             break;
         default:
             break;
         }
         // Convert from [0,1] to [-1,1]
-        normal = normalized(normal * 2.0 - vec3{1.0, 1.0, 1.0});
+        normal = (normal * 2.0 - vec3{1.0, 1.0, 1.0});
         return normal;
     }
 };
