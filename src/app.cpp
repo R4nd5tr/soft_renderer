@@ -200,7 +200,7 @@ Scene App::loadScene() {
     // ============================================================
     scene.addLight(Light{}); // 环境光
     scene.shaderKind = ShaderKind::BlinnPhong;
-    scene.clearOption(ShaderOptions::NormalTexture);
+    // scene.clearOption(ShaderOptions::NormalTexture);
 
     // scene.addModel("obj/african_head/african_head.obj");
     // scene.addModel("obj/boggie/boggie.obj");
@@ -225,8 +225,8 @@ Scene App::loadScene() {
 
 void App::updateScene(float deltaTime) {
     for (auto& model : scene.models) { // model rotation
-        model.transform.rotateLocal(vec3{0, 1, 0}, 0.5f * deltaTime);
+        model.transform.rotateLocal(vec3{0, 1, 0}, 0.15f * deltaTime);
     }
 }
 
-// TODO: 法线贴图，切线空间加载, 2DUI功能
+// TODO: 2DUI功能

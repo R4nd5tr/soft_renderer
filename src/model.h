@@ -121,6 +121,23 @@ struct VertexIndices {
     int vertexIndex = -1;
     int normalIndex = -1;
     int uvIndex = -1;
+    bool operator==(const VertexIndices& o) const {
+        return vertexIndex == o.vertexIndex && normalIndex == o.normalIndex && uvIndex == o.uvIndex;
+    }
+};
+namespace std {
+template <> struct hash<VertexIndices> {
+    size_t operator()(const VertexIndices& v) const {
+        size_t h = std::hash<int>()(v.vertexIndex);
+        h = h * 31u + std::hash<int>()(v.normalIndex);
+        h = h * 31u + std::hash<int>()(v.uvIndex);
+        return h;
+    }
+};
+} // namespace std
+struct Tangent {
+    vec3 T;
+    float handedness;
 };
 struct SubMesh {            // a part of a Mesh that uses the same material
     int materialIndex = -1; // Index into the materials vector of the Model struct
@@ -131,12 +148,13 @@ struct Mesh {         // one shape in the .obj file
     std::string name; // o/g in the .obj file
     std::vector<VertexIndices> indices;
     std::vector<SubMesh> subMeshes; // different materials
+    std::vector<Tangent> tangents;
 };
 struct Model { // one .obj file corresponds to one Model
     std::filesystem::path path;
 
-    // global pool of materials, vertices, normals, uvs
     std::vector<Material> materials;
+    // global pool of vertices, normals, uvs
     std::vector<vec4> vertices;
     std::vector<vec4> normals;
     std::vector<vec2> uvs;

@@ -100,6 +100,8 @@ void rasterize3D(Frame& frame, ZBuffer& zBuffer, const Primitive& tri, const Sha
                     f.worldPos = (v1.worldPos * p1 + v2.worldPos * p2 + v3.worldPos * p3) * invP;
                     f.worldNormal = (v1.worldNormal * p1 + v2.worldNormal * p2 + v3.worldNormal * p3) * invP;
                     f.faceNormal = faceNormal;
+                    f.worldTangent = (v1.worldTangent * p1 + v2.worldTangent * p2 + v3.worldTangent * p3) * invP;
+                    f.handedness = (v1.handedness * p1 + v2.handedness * p2 + v3.handedness * p3) * invP;
 
                     Color color;
                     if (shader(ctx, f, color)) {
@@ -124,6 +126,8 @@ VertexOut lerpVertex(const VertexOut& v1, const VertexOut& v2, float t) {
     v.worldPos = lerp(v1.worldPos, v2.worldPos, t);
     v.worldNormal = lerp(v1.worldNormal, v2.worldNormal, t);
     v.uv = lerp(v1.uv, v2.uv, t);
+    v.worldTangent = lerp(v1.worldTangent, v2.worldTangent, t);
+    v.handedness = (t < 0.5f) ? v1.handedness : v2.handedness;
     return v;
 }
 
@@ -197,11 +201,16 @@ ClipResult clipTriangle(const VertexOut in[3], ClipBuffers& buf) {
 Primitive Renderer::getPrimitive(const Model& model, const Mesh& mesh, const SubMesh& subMesh, size_t triIndex) const {
     Primitive tri;
     for (int i = 0; i < 3; ++i) {
-        const VertexIndices& vi = mesh.indices[subMesh.indexOffset + triIndex + i];
+        int idx = subMesh.indexOffset + triIndex + i;
+        const VertexIndices& vi = mesh.indices[idx];
         tri.v[i].clipVert = clipVertices[vi.vertexIndex];
         tri.v[i].worldPos = worldVertices[vi.vertexIndex];
         if (vi.normalIndex >= 0) tri.v[i].worldNormal = worldNormals[vi.normalIndex];
         if (vi.uvIndex >= 0) tri.v[i].uv = model.uvs[vi.uvIndex];
+        if (worldTangents.size() > idx) {
+            tri.v[i].worldTangent = worldTangents[idx].T;
+            tri.v[i].handedness = worldTangents[idx].handedness;
+        }
     }
     return tri;
 }
@@ -248,7 +257,12 @@ void Renderer::render3DModel(const Model& model, Frame& frame, const mat<4, 4>& 
         worldNormals[i] = (normalMat * model.normals[i]).xyz();
 
     // model
-    for (const auto& mesh : model.meshes) {          // mesh
+    for (const auto& mesh : model.meshes) { // mesh
+        worldTangents.resize(mesh.tangents.size());
+        for (size_t i = 0; i < mesh.tangents.size(); ++i) {
+            const auto& T = mesh.tangents[i].T;
+            worldTangents[i] = (Tangent{(normalMat * vec4{T.x, T.y, T.z, 0.0f}).xyz(), mesh.tangents[i].handedness});
+        }
         for (const auto& subMesh : mesh.subMeshes) { // material submesh
             const Material& material = model.materials[subMesh.materialIndex];
             ShaderContext ctx{material, env};

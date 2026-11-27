@@ -10,6 +10,8 @@ struct Fragment {
     vec3 worldNormal;
     vec3 faceNormal;
     vec2 uv;
+    vec3 worldTangent = {0, 0, 0}; // 世界空间切线
+    float handedness = 0;
 };
 
 enum class ShaderKind;
@@ -37,7 +39,25 @@ inline vec3 normal(const ShaderContext& ctx, const Fragment& f) {
     const Material& m = ctx.material;
     bool useTexture = ctx.env.options & ShaderOptions::NormalTexture;
     // use normal map
-    if (useTexture && m.normalMap.format != TextureFormat::NONE) return m.normalMap.sampleNormal(f.uv);
+    if (useTexture && m.normalMap.format != TextureFormat::NONE) {
+        vec3 textureNormal = m.normalMap.sampleNormal(f.uv);
+        vec3 N = normalized(f.worldNormal);
+        vec3 T = f.worldTangent;
+
+        T = T - N * (T * N); // Gram-Schmidt
+        const float tlen = std::sqrt(T * T);
+        if (tlen < 1e-6f) {
+            T = normalized(cross(N, std::fabs(N.x) < 0.9f ? vec3{1, 0, 0} : vec3{0, 1, 0}));
+        } else {
+            T = T / tlen;
+        }
+
+        const float w = (f.handedness < 0.0f) ? -1.0f : 1.0f;
+        const vec3 B = cross(N, T) * w;
+
+        // n = x·T + y·B + z·N
+        return normalized(T * textureNormal.x + B * textureNormal.y + N * textureNormal.z);
+    }
     // use world normal
     const float len2 = f.worldNormal * f.worldNormal;
     if (len2 > EPSILON_SQ) return f.worldNormal / std::sqrt(len2);

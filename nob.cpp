@@ -210,6 +210,11 @@ int main(int argc, char** argv) {
 
     // 链接
     nob_cmd_append(&cmd, CC);
+#if defined(_MSC_VER) && !defined(__clang__)
+    nob_cmd_append(&cmd, "/nologo", "/Z7");
+#else
+    nob_cmd_append(&cmd, "-g");
+#endif
     for (const auto& obj : objects)
         nob_cmd_append(&cmd, obj.c_str());
     nob_cmd_append(&cmd, LIBS, OUTPUT_FLAG, OUTPUT_FILE);

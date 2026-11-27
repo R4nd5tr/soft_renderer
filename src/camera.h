@@ -5,6 +5,10 @@
 constexpr float CAMERA_MIN_DISTANCE = 0.01f;
 constexpr float CAMERA_PITCH_LIMIT = 1.55f; // ≈ 88.8°，留余量避免 up×forward 退化
 
+enum class ProjectionMode {
+    PERSPECTIVE, // 透视投影
+    ORTHOGRAPHIC // 正交投影
+};
 struct Camera {
     // ===== 轨道状态（唯一需要保存的东西）=====
     vec3 target = {0, 0, 0}; // 轨道中心 / pivot -左+右，-下+上，-前+后
@@ -17,6 +21,8 @@ struct Camera {
     float aspect = 1.0f;
     float nearPlane = 0.01f;
     float farPlane = 1000.0f;
+
+    ProjectionMode projectionMode = ProjectionMode::PERSPECTIVE;
 
     // 由 (yaw, pitch, dist) 现算 position：pivot + dir * dist
     vec3 position() const {
@@ -49,8 +55,22 @@ struct Camera {
         p[3] = {0, 0, -1, 0};
         return p;
     }
-
-    mat<4, 4> viewProjection() const { return perspective() * lookAt(); }
+    mat<4, 4> orthographic() const {
+        const float halfH = dist * std::tan(fov * 0.5f * PI / 180.0f);
+        const float halfW = halfH * aspect;
+        const float n = nearPlane, fa = farPlane;
+        mat<4, 4> p;
+        p[0] = {1.0f / halfW, 0, 0, 0};
+        p[1] = {0, 1.0f / halfH, 0, 0};
+        p[2] = {0, 0, 1.0f / (fa - n), fa / (fa - n)};
+        p[3] = {0, 0, 0, 1};
+        return p;
+    }
+    mat<4, 4> viewProjection() const {
+        if (projectionMode == ProjectionMode::PERSPECTIVE) return perspective() * lookAt();
+        if (projectionMode == ProjectionMode::ORTHOGRAPHIC) return orthographic() * lookAt();
+        return mat<4, 4>{1};
+    }
 
     // 这些方法就不再“复合”，只是加减标量
     float distance() const { return dist; }

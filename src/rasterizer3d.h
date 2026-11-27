@@ -30,9 +30,11 @@ struct NdcTriangle {
 struct VertexOut {
     vec4 clipVert = {0, 0, 0, 0}; // 裁剪空间坐标
     // varyings
-    vec3 worldPos = {0, 0, 0};    // 世界空间位置（光照要用）
-    vec3 worldNormal = {0, 0, 0}; // 世界空间法线
-    vec2 uv = {0, 0};             // 纹理坐标（OBJ 原始朝向）
+    vec3 worldPos = {0, 0, 0};     // 世界空间位置（光照要用）
+    vec3 worldNormal = {0, 0, 0};  // 世界空间法线
+    vec2 uv = {0, 0};              // 纹理坐标（OBJ 原始朝向）
+    vec3 worldTangent = {0, 0, 0}; // 世界空间切线
+    float handedness = 0;
 };
 struct Primitive {
     VertexOut v[3];
@@ -42,6 +44,7 @@ struct Renderer {
     std::vector<vec4> clipVertices;
     std::vector<vec3> worldNormals;
     std::vector<vec3> worldVertices;
+    std::vector<Tangent> worldTangents;
     ZBuffer zBuffer;
 
     Primitive getPrimitive(const Model& model, const Mesh& mesh, const SubMesh& sub, size_t triIndex) const;
