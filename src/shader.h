@@ -56,7 +56,7 @@ inline vec3 normal(const ShaderContext& ctx, const Fragment& f) {
         const vec3 B = cross(N, T) * w;
 
         // n = x·T + y·B + z·N
-        return normalized(T * textureNormal.x + B * textureNormal.y + N * textureNormal.z);
+        return (T * textureNormal.x + B * textureNormal.y + N * textureNormal.z);
     }
     // use world normal
     const float len2 = f.worldNormal * f.worldNormal;
@@ -106,22 +106,22 @@ inline vec3 blinnPhong(const ShaderContext& ctx, const Fragment& f, const vec3& 
 }
 
 enum class ShaderKind { Unlit, Normal, FlatBlinnPhong, BlinnPhong };
-using FragmentShader = bool (*)(const ShaderContext&, const Fragment&, Color&);
+using FragmentShader = bool (*)(const ShaderContext&, const Fragment&, RGBA&);
 
-inline bool unlitShader(const ShaderContext& ctx, const Fragment& f, Color& out) {
+inline bool unlitShader(const ShaderContext& ctx, const Fragment& f, RGBA& out) {
     out = linearToRGBA_sRGB(albedo(ctx, f));
     return true;
 }
-inline bool normalShader(const ShaderContext& ctx, const Fragment& f, Color& out) {
+inline bool normalShader(const ShaderContext& ctx, const Fragment& f, RGBA& out) {
     vec3 normalVec = normal(ctx, f);
     out = vec3toRGBA(normalVec * 0.5f + vec3{0.5f, 0.5f, 0.5f});
     return true;
 }
-inline bool flatBlinnPhongShader(const ShaderContext& ctx, const Fragment& f, Color& out) {
+inline bool flatBlinnPhongShader(const ShaderContext& ctx, const Fragment& f, RGBA& out) {
     out = linearToRGBA_sRGB(blinnPhong(ctx, f, f.faceNormal)); // use face normal
     return true;
 }
-inline bool blinnPhongShader(const ShaderContext& ctx, const Fragment& f, Color& out) {
+inline bool blinnPhongShader(const ShaderContext& ctx, const Fragment& f, RGBA& out) {
     out = linearToRGBA_sRGB(blinnPhong(ctx, f, normal(ctx, f))); // use normal
     return true;
 }

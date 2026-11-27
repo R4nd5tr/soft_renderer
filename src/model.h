@@ -26,7 +26,7 @@ struct Texture {
         y = std::clamp(y, 0, height - 1);
 
         size_t idx = (y * width + x) * (size_t)format;
-        RGBA color{0, 0, 0, 255};
+        RGBA color = makeRGBA(0, 0, 0);
         switch (format) {
         case TextureFormat::GRAY:
             color.r = color.g = color.b = data[idx];

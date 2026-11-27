@@ -4,8 +4,15 @@
 
 bool writeFrameToImage(const Frame& frame, const std::string& filename) {
     if (frame.data.empty() || frame.width <= 0 || frame.height <= 0) return false;
-    return stbi_write_png(
-        filename.c_str(), frame.width, frame.height, sizeof(Color), frame.data.data(), frame.width * sizeof(Color));
+    std::vector<uint8_t> rgba(frame.data.size() * 4);
+    for (size_t i = 0; i < frame.data.size(); ++i) {
+        const RGBA& c = frame.data[i];
+        rgba[i * 4 + 0] = c.r;
+        rgba[i * 4 + 1] = c.g;
+        rgba[i * 4 + 2] = c.b;
+        rgba[i * 4 + 3] = c.a;
+    }
+    return stbi_write_png(filename.c_str(), frame.width, frame.height, 4, rgba.data(), frame.width * 4);
 }
 
 bool ZBuffer::toImage(const std::string& filename) {

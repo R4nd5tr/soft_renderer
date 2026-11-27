@@ -103,7 +103,7 @@ void rasterize3D(Frame& frame, ZBuffer& zBuffer, const Primitive& tri, const Sha
                     f.worldTangent = (v1.worldTangent * p1 + v2.worldTangent * p2 + v3.worldTangent * p3) * invP;
                     f.handedness = (v1.handedness * p1 + v2.handedness * p2 + v3.handedness * p3) * invP;
 
-                    Color color;
+                    RGBA color;
                     if (shader(ctx, f, color)) {
                         z = depth;
                         drawPixelUnchecked(frame, {x, y}, color);
@@ -200,8 +200,8 @@ ClipResult clipTriangle(const VertexOut in[3], ClipBuffers& buf) {
 
 Primitive Renderer::getPrimitive(const Model& model, const Mesh& mesh, const SubMesh& subMesh, size_t triIndex) const {
     Primitive tri;
-    for (int i = 0; i < 3; ++i) {
-        int idx = subMesh.indexOffset + triIndex + i;
+    for (size_t i = 0; i < 3; ++i) {
+        size_t idx = subMesh.indexOffset + triIndex + i;
         const VertexIndices& vi = mesh.indices[idx];
         tri.v[i].clipVert = clipVertices[vi.vertexIndex];
         tri.v[i].worldPos = worldVertices[vi.vertexIndex];

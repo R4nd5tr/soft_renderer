@@ -5,6 +5,8 @@
 #include <chrono>
 #include <thread>
 
+constexpr RGFW_format FRAME_SURFACE_FORMAT = FRAME_IS_BGR ? RGFW_formatBGRA8 : RGFW_formatRGBA8;
+
 using Clock = std::chrono::steady_clock;
 auto ms = [](auto d) {
     return std::chrono::duration<double, std::milli>(d).count();
@@ -22,7 +24,7 @@ bool App::init() {
     RGFW_window_setExitKey(win, RGFW_escape);
 
     surface = RGFW_createSurface(
-        reinterpret_cast<u8*>(windowFrame.data.data()), windowFrame.width, windowFrame.height, RGFW_formatRGBA8);
+        reinterpret_cast<u8*>(windowFrame.data.data()), windowFrame.width, windowFrame.height, FRAME_SURFACE_FORMAT);
     if (!surface) return false;
 
     scene = loadScene();

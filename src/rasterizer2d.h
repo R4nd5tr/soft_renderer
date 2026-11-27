@@ -16,7 +16,7 @@ struct Triangle {
     Point p3;
 };
 
-void drawLine(Frame& frame, const Point& p1, const Point& p2, const Color& color) {
+void drawLine(Frame& frame, const Point& p1, const Point& p2, const RGBA& color) {
     if (frame.data.empty()) return;
 
     int dx = std::abs(p2.x - p1.x);
@@ -41,7 +41,7 @@ void drawLine(Frame& frame, const Point& p1, const Point& p2, const Color& color
         }
     }
 }
-void drawCircle(Frame& frame, const Point& center, int radius, const Color& color) {
+void drawCircle(Frame& frame, const Point& center, int radius, const RGBA& color) {
     if (frame.data.empty() || radius < 0) return;
     if (radius == 0) {
         drawPixel(frame, {center.x, center.y}, color);
@@ -79,7 +79,7 @@ inline bool isTopLeftEdge(const Point& a, const Point& b) {
     return dy < 0 || (dy == 0 && dx > 0);
 #endif
 }
-void drawTriangle(Frame& frame, const Triangle& t, const Color& color) {
+void drawTriangle(Frame& frame, const Triangle& t, const RGBA& color) {
     // bounding box of the triangle, clamped to the frame boundaries
     int minX = std::max(0, std::min({t.p1.x, t.p2.x, t.p3.x}));
     int maxX = std::min(frame.width - 1, std::max({t.p1.x, t.p2.x, t.p3.x}));

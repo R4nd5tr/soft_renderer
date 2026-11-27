@@ -4,10 +4,6 @@
 #include "model.h"
 #include "rasterizer3d.h"
 #include "scene.h"
-#include <algorithm>
-#include <cmath>
-#include <cstdint>
-#include <cstdlib>
 #include <vector>
 
 struct RGFW_window;
@@ -33,8 +29,8 @@ public:
     int renderWidth = 1600, renderHeight = 900;
     int renderScale = 1;
     int windowWidth = renderWidth * renderScale, windowHeight = renderHeight * renderScale;
-    Frame renderFrame{std::vector<Color>(renderWidth * renderHeight), renderWidth, renderHeight};
-    Frame windowFrame{std::vector<Color>(windowWidth * windowHeight), windowWidth, windowHeight};
+    Frame renderFrame{std::vector<RGBA>(renderWidth * renderHeight), renderWidth, renderHeight};
+    Frame windowFrame{std::vector<RGBA>(windowWidth * windowHeight), windowWidth, windowHeight};
     Frame& renderTarget() { return renderScale == 1 ? windowFrame : renderFrame; }
 
     RGFW_window* win = nullptr;
